@@ -1,0 +1,25 @@
+{
+  "project": "wiki_maintainer",
+  "llm_profiles_path": "configs/wiki_maintainer/models.json",
+  "nodes": [
+    {
+      "id": "wiki_spec",
+      "config_path": "configs/wiki_maintainer/nodes/wiki_spec.json",
+      "gates": {
+        "review_config_path": "configs/wiki_maintainer/nodes/wiki_spec_review.json",
+        "hitl": true
+      }
+    },
+    {
+      "id": "wiki_pages",
+      "config_path": "configs/wiki_maintainer/nodes/wiki_pages.json",
+      "gates": {
+        "review_config_path": "configs/wiki_maintainer/nodes/wiki_pages_review.json",
+        "hitl": true
+      }
+    }
+  ],
+  "edges": [
+    {"from": "wiki_spec", "to": "wiki_pages"}
+  ]
+}

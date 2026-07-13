@@ -1,0 +1,5 @@
+{
+  "base_prompt_path": "configs/data_analyst/prompts/spec_review.base.md",
+  "stage_map_path": "configs/data_analyst/prompts/empty.stage.md",
+  "llm_profile": "default"
+}

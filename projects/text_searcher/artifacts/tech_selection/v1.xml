@@ -1,0 +1,9 @@
+<tech_stack derived_from="contracts.xml@1">
+  <tech ref="python/fastapi">
+    <why>
+      Закрывает HTTP-микросервис (REST API) для всех операций контрактов:
+      OP-exact-search, OP-word-search, OP-root-search (C-search) и
+      OP-lemmatize (C-lemmatize), описанных в openapi.
+    </why>
+  </tech>
+</tech_stack>

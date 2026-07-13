@@ -1,0 +1,31 @@
+<wiki_change derived_from="input@v2">
+  <source_request>Метаданные pandas: ссылка на документацию. ЧЕТЫРЕ файла, все action=update. Три из них — дословные копии без изменений (нужны, чтобы цели ссылок каталога были в file map): это уже принятые verified-страницы, пометку unverified НЕ ставить, не менять ни символа.
+
+1) python/pandas/index.md: после строки со стабильной версией добавь строку «Документация: https://pandas.pydata.org/docs/». Всё остальное — дословно.
+2) python/pandas/io-csv.md: дословная копия текущего текста.
+3) python/pandas/aggregation.md: дословная копия текущего текста.
+4) python/pandas/timeseries.md: дословная копия текущего текста.
+
+В каждой ревизии возвращай ПОЛНЫЙ file map (все четыре файла).
+Материал: Официальный корень документации pandas (проверено 2026-07-10, источник прошлых прогонов): https://pandas.pydata.org/docs/ — документация PyData для pandas. Страницы io-csv.md, aggregation.md, timeseries.md в этом прогоне не меняются (дословные копии принятых страниц).</source_request>
+  <summary>Обновление карточки pandas (добавлена ссылка на документацию) и подтверждение страниц; добавлены related-ссылки для всех страниц согласно ревью.</summary>
+  <pages>
+    <page path="python/pandas/index.md" action="update" unverified="false">
+      <purpose>Добавлена строка «Документация: https://pandas.pydata.org/docs/» после строки со стабильной версией</purpose>
+      <related>python/index.md, python/pandas/io-csv.md, python/pandas/aggregation.md, python/pandas/timeseries.md</related>
+    </page>
+    <page path="python/pandas/io-csv.md" action="update" unverified="false">
+      <purpose>Дословная копия текущей страницы (подтверждена без изменений)</purpose>
+      <related>python/pandas/index.md</related>
+    </page>
+    <page path="python/pandas/aggregation.md" action="update" unverified="false">
+      <purpose>Дословная копия текущей страницы (подтверждена без изменений)</purpose>
+      <related>python/pandas/index.md</related>
+    </page>
+    <page path="python/pandas/timeseries.md" action="update" unverified="false">
+      <purpose>Дословная копия текущей страницы (подтверждена без изменений)</purpose>
+      <related>python/pandas/index.md</related>
+    </page>
+  </pages>
+  <index_updates>изменений в индексах областей нет</index_updates>
+</wiki_change>

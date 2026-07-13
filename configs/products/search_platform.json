@@ -1,0 +1,10 @@
+{
+  "product": "search_platform",
+  "services": [
+    {
+      "name": "text-search",
+      "package": "projects/text_searcher/package",
+      "ports": ["8000:8000"]
+    }
+  ]
+}

@@ -1,0 +1,58 @@
+<input>
+  <submodule domain="D-03" name="StemSearch" of_project="text_searcher"/>
+  <requirements_subset>
+    <fr id="FR-03" priority="should">Поиск по корню (лемматизация)
+      <example query="кот" matches="кот, коту, котом" not_matches="котлета"/>
+    </fr>
+    <nonfunctional>
+    <nfr id="NFR-01" type="reliability" subtype="determinism" priority="must">
+      <statement>Детерминизм: без сети/LLM, воспроизводимо</statement>
+      <verify>повторные прогоны на одинаковых (запрос, корпус) дают идентичный результат</verify>
+    </nfr>
+
+    <nfr id="NFR-02" type="portability" subtype="offline" priority="must">
+      <statement>Офлайн: без использования remote сервисов</statement>
+      <verify>полный прогон при отключённом сетевом доступе проходит</verify>
+    </nfr>
+
+    <nfr id="NFR-03" type="performance" subtype="memory" priority="should">
+      <statement>Потребление памяти не зависит от числа выполненных запросов</statement>
+      <metric>прирост RSS после серии запросов относительно baseline</metric>
+      <target>O(1) на запрос; общий объём O(размер корпуса)</target>
+      <condition>корпус фиксирован и предзагружен</condition>
+      <verify>10⁴ запросов /verify>
+    </nfr>
+
+    <nfr id="NFR-04" type="performance" subtype="latency" priority="must">
+      <statement>Время одноу корпусу — единицымиллисекунд</statement>
+      <metric>p95 латентнос загрузки корпуса)</metric>
+      <target>p95 &lt; 5 мс при корпусе ≤ 1 МБ текста</target>
+      <condition>корпус пре закэшированы;референс-железо: &lt;указать&gt;</condition>
+      <verify>бенч на goldeify>
+    </nfr>
+
+    <nfr id="NFR-05" type="portability" subtype="i18n" priority="must">
+      <statement>Основной яорфологии (лемматизациясловоформ к нормальной форме)</statement>
+      <target>RU: все три рню).
+              Латиница/прочее: точный и по слову работают; по корню — falточное слово
+              без ошибки (морфология не применяется)</target>                  <example lang="ru" quежал"/>
+      <example lang="en" query="run" matches="run" not_matches="running" note="лемматизация не приме
+      <verify>кейсы на RU- и EN-корпусах, включая смешанный текст</verify>
+    </nfr>
+  </nonfunctional>
+  </requirements_subset>
+  <domain id="D-03" name="StemSearch">
+    <responsibility>Координация поиска по корню: нормализация запроса, сопоставление нормализованных форм по корпусу через Matching</responsibility>
+    <covers>FR-03</covers>
+    <ubiquitous_language>
+      <term name="корневой поиск">поиск, при котором запрос и слова корпуса приводятся к лемме, затем выполняется точное сопоставление лемм</term>
+      <term name="нормализованный запрос">запрос, приведённый к лемме через Lemmatization</term>
+    </ubiquitous_language>
+    <owns>стратегия корневого сопоставления как композиции нормализации и точного поиска</owns>
+    <emits/>
+  </domain>
+  <interfaces>
+    <consumes via="C-stem-lookup" kind="sync" from="Lemmatization"/>
+    <consumes via="C-corpus-access" kind="sync" from="Matching"/>
+  </interfaces>
+</input>

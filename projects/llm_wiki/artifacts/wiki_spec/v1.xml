@@ -1,0 +1,35 @@
+<wiki_change derived_from="input@v1">
+  <summary>Две новые области: payments (Stripe-вебхуки, идемпотентность) и search (Postgres tsvector, русская морфология)</summary>
+  <pages>
+    <page path="payments/index.md" action="add" unverified="false">
+      <purpose>область: интеграция платежей — решения и грабли из чатов</purpose>
+      <source_chunks>d1:01</source_chunks>
+      <index_row>| [payments](payments/index.md) | интеграция платежей: Stripe, вебхуки, подписки |</index_row>
+      <related>index.md</related>
+    </page>
+    <page path="payments/stripe-webhooks.md" action="add" unverified="false">
+      <purpose>вебхуки Stripe: идемпотентность через event.id, таблица processed_events (30 дней), грабля с порядком событий (checkout.session.completed vs invoice.paid), активация подписки только по invoice.paid</purpose>
+      <source_chunks>d1:01</source_chunks>
+      <index_row>| [stripe-webhooks](stripe-webhooks.md) | вебхуки Stripe: идемпотентность и порядок событий |</index_row>
+      <related>payments/index.md</related>
+    </page>
+    <page path="search/index.md" action="add" unverified="false">
+      <purpose>область: поиск по каталогу — полнотекстовые решения</purpose>
+      <source_chunks>d1:05</source_chunks>
+      <index_row>| [search](search/index.md) | поиск по каталогу: Postgres FTS, ранжирование |</index_row>
+      <related>index.md</related>
+    </page>
+    <page path="search/postgres-fulltext.md" action="add" unverified="false">
+      <purpose>полнотекстовый поиск в MVP: GIN-индекс на tsvector('russian', …), словарь ru_stem, грабля ts_rank без нормализации длины (флаг 1), синонимы в бэклоге</purpose>
+      <source_chunks>d1:05</source_chunks>
+      <index_row>| [postgres-fulltext](postgres-fulltext.md) | Postgres FTS: tsvector, GIN, ранжирование |</index_row>
+      <related>search/index.md</related>
+    </page>
+  </pages>
+  <index_updates>
+    <index path="index.md">добавить строки payments и search в таблицу областей</index>
+    <index path="payments/index.md">добавить строку stripe-webhooks в таблицу страниц области</index>
+    <index path="search/index.md">добавить строку postgres-fulltext в таблицу страниц области</index>
+  </index_updates>
+  <backlog>Тема «синонимы в поиске» (упомянута в d1:05 как отложенная) — кандидат на будущую страницу search/synonyms.md</backlog>
+</wiki_change>

@@ -1,0 +1,5 @@
+{
+  "base_prompt_path": "user_docs/prompts/artifact_generator.base.md",
+  "stage_map_path": "configs/data_analyst/prompts/stage.analysis_spec.md",
+  "llm_profile": "default"
+}

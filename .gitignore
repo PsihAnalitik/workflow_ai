@@ -1,0 +1,22 @@
+# секреты и локальное окружение — .env НИКОГДА не коммитится (ключи в .env.example без значений)
+.env
+
+# python / инструментарий
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.ruff_cache/
+
+# локальные настройки Claude Code
+.claude/
+
+# сгенерированное: HTML-рендер wiki (восстанавливается wiki-render)
+wiki_html/
+
+# выходы прогонов: журналы содержат ПОЛНЫЕ промпты и материалы,
+# в т.ч. артефакты сторонних проектов (smart-assistant) — не публиковать
+projects/*/runs/
+projects/*/map/
+projects/prompt_roaster/
+projects/table_validator/

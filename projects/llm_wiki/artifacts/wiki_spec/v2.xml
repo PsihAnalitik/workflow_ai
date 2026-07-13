@@ -1,0 +1,22 @@
+<wiki_change derived_from="input@v1">
+  <summary>Три сессии сквозного тестирования MCP-сервера agent-workshop: новая область agent-workshop, страницы-индекс и smoke-test с протоколом шагов, статусами и граблями из реальных прогонов.</summary>
+  <pages>
+    <page path="agent-workshop/index.md" action="add" unverified="false">
+      <purpose>область: MCP-сервер agent-workshop — цеха, конвейеры, режимы и подход к тестированию</purpose>
+      <source_chunks>inline</source_chunks>
+      <index_row>| [agent-workshop](agent-workshop/index.md) | MCP-сервер agent-workshop: цеха, конвейеры, smoke-тесты |</index_row>
+      <related>index.md</related>
+    </page>
+    <page path="agent-workshop/smoke-test.md" action="add" unverified="false">
+      <purpose>сквозной smoke-тест agent-workshop: list_shops → run_shop → поллинг (sleep+run_status) → get_pending_interaction → submit_decision(reject) → финальный run_status; протокол из трёх реальных прогонов (d92b4a92 — незавершён, 1f905cd0 — MAX_ITERATIONS_EXCEEDED, dfdeaf28 — успех)</purpose>
+      <source_chunks>inline</source_chunks>
+      <index_row>| [smoke-test](smoke-test.md) | сквозной сценарий: шаги, поллинг, статусы, грабли |</index_row>
+      <related>agent-workshop/index.md</related>
+    </page>
+  </pages>
+  <index_updates>
+    <index path="index.md">добавить строку agent-workshop в таблицу областей</index>
+    <index path="agent-workshop/index.md">строка smoke-test (индекс сам добавляется в pages — всё равно указывай)</index>
+  </index_updates>
+  <backlog>детальная страница по цеху data_analyst (конвейер task_spec→tech_selection→executor, HITL-гейты); страница по разбору ошибок прогона (MAX_ITERATIONS_EXCEEDED, REJECTED_BY_USER, таймауты); страница по режимам run_shop (interactive vs autopilot)</backlog>
+</wiki_change>

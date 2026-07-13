@@ -1,0 +1,485 @@
+```file:src/__init__.py
+
+```
+
+```file:src/module_01.py
+"""MOD-01: Загрузка и очистка данных."""
+
+from typing import Optional, Tuple
+
+import pandas as pd
+
+
+def load_and_clean(filepath: str) -> Tuple[Optional[pd.DataFrame], Optional[int], Optional[str]]:
+    """Читает CSV, проверяет схему, считает и удаляет пропуски в qty/price.
+
+    Возвращает (чистый DataFrame, количество отброшенных строк, ошибка) или
+    (None, None, код ошибки) при сбое.
+    """
+    try:
+        df = pd.read_csv(filepath)
+    except Exception:
+        return None, None, "FILE_READ_ERROR"
+
+    expected_columns = {"date", "category", "product", "qty", "price", "region"}
+    if not expected_columns.issubset(df.columns):
+        return None, None, "SCHEMA_MISMATCH"
+
+    mask_missing = df[["qty", "price"]].isna().any(axis=1)
+    discarded_count = int(mask_missing.sum())
+
+    clean_df = df[~mask_missing].copy()
+    clean_df["qty"] = clean_df["qty"].astype(int)
+    clean_df["price"] = clean_df["price"].astype(int)
+
+    return clean_df, discarded_count, None
+```
+
+```file:src/module_02.py
+"""MOD-02: Выделение признака «месяц» из даты."""
+
+from typing import Optional, Tuple
+
+import pandas as pd
+
+
+def add_month(df: pd.DataFrame) -> Tuple[Optional[pd.DataFrame], Optional[str]]:
+    """Добавляет колонку month (int) на основе date.
+
+    Ожидается формат YYYY-MM-DD. Возвращает (обогащённый DataFrame, None)
+    или (None, код ошибки).
+    """
+    if "date" not in df.columns:
+        return None, "INVALID_DATE_FORMAT"
+
+    try:
+        dates = pd.to_datetime(df["date"], format="%Y-%m-%d", errors="raise")
+    except Exception:
+        return None, "INVALID_DATE_FORMAT"
+
+    df_enriched = df.copy()
+    df_enriched["month"] = dates.dt.month
+    return df_enriched, None
+```
+
+```file:src/module_03.py
+"""MOD-03: Агрегация выручки по категориям."""
+
+from typing import Optional, Tuple
+
+import pandas as pd
+
+
+def revenue_by_category(df: pd.DataFrame) -> Tuple[Optional[pd.DataFrame], Optional[str]]:
+    """Суммарная выручка (qty * price) по категориям."""
+    if df.empty:
+        return None, "EMPTY_DATASET"
+
+    df = df.copy()
+    df["revenue"] = df["qty"] * df["price"]
+    result = (
+        df.groupby("category", as_index=False)
+        .agg(revenue=("revenue", "sum"))
+        .sort_values("revenue", ascending=False)
+        .reset_index(drop=True)
+    )
+    return result, None
+```
+
+```file:src/module_04.py
+"""MOD-04: Агрегация выручки по месяцам."""
+
+from typing import Optional, Tuple
+
+import pandas as pd
+
+
+def revenue_by_month(df: pd.DataFrame) -> Tuple[Optional[pd.DataFrame], Optional[str]]:
+    """Суммарная выручка (qty * price) по месяцам.
+
+    Ожидается, что DataFrame содержит колонку month (int).
+    """
+    if df.empty:
+        return None, "EMPTY_DATASET"
+
+    df = df.copy()
+    df["revenue"] = df["qty"] * df["price"]
+    result = (
+        df.groupby("month", as_index=False)
+        .agg(revenue=("revenue", "sum"))
+        .sort_values("month")
+        .reset_index(drop=True)
+    )
+    return result, None
+```
+
+```file:src/module_05.py
+"""MOD-05: Определение топ-3 продуктов по выручке."""
+
+from typing import Optional, Tuple
+
+import pandas as pd
+
+
+def top_products(df: pd.DataFrame) -> Tuple[Optional[pd.DataFrame], Optional[str]]:
+    """Топ-3 продукта по суммарной выручке (qty * price)."""
+    if df.empty:
+        return None, "EMPTY_DATASET"
+
+    df = df.copy()
+    df["revenue"] = df["qty"] * df["price"]
+    product_revenue = (
+        df.groupby("product", as_index=False)
+        .agg(revenue=("revenue", "sum"))
+        .sort_values("revenue", ascending=False)
+    )
+    top3 = product_revenue.head(3).reset_index(drop=True)
+    return top3, None
+```
+
+```file:src/module_06.py
+"""MOD-06: Расчёт среднего чека по регионам."""
+
+from typing import Optional, Tuple
+
+import pandas as pd
+
+
+def avg_check_by_region(df: pd.DataFrame) -> Tuple[Optional[pd.DataFrame], Optional[str]]:
+    """Средний чек (средняя выручка на строку) по регионам."""
+    if df.empty:
+        return None, "EMPTY_DATASET"
+
+    df = df.copy()
+    df["revenue"] = df["qty"] * df["price"]
+    result = (
+        df.groupby("region", as_index=False)
+        .agg(avg_check=("revenue", "mean"))
+        .sort_values("region")
+        .reset_index(drop=True)
+    )
+    return result, None
+```
+
+```file:src/module_07.py
+"""MOD-07: Формирование отчётных таблиц."""
+
+from typing import Optional, Tuple
+
+import pandas as pd
+
+
+def build_report(
+    revenue_by_category: pd.DataFrame,
+    revenue_by_month: pd.DataFrame,
+    top_products: pd.DataFrame,
+    avg_check_by_region: pd.DataFrame,
+    discarded_count: int,
+) -> Tuple[Optional[str], Optional[str]]:
+    """Собирает текстовый отчёт из агрегатов и счётчика отброшенных строк."""
+    if any(
+        arg is None
+        for arg in [revenue_by_category, revenue_by_month, top_products, avg_check_by_region]
+    ):
+        return None, "MISSING_AGGREGATE"
+
+    lines = []
+    lines.append("=== Отчёт о продажах за квартал ===\n")
+    lines.append("1. Выручка по категориям:")
+    lines.append(revenue_by_category.to_string(index=False))
+    lines.append("\n2. Выручка по месяцам:")
+    lines.append(revenue_by_month.to_string(index=False))
+    lines.append("\n3. Топ-3 продукта по выручке:")
+    lines.append(top_products.to_string(index=False))
+    lines.append("\n4. Средний чек по регионам:")
+    lines.append(avg_check_by_region.to_string(index=False))
+    lines.append(f"\n5. Отброшено строк с пропусками: {discarded_count}")
+    return "\n".join(lines), None
+```
+
+```file:tests/test_module_01.py
+import pandas as pd
+import pytest
+
+from src.module_01 import load_and_clean
+
+
+def test_load_and_clean_happy_path(monkeypatch) -> None:
+    """Все строки без пропусков – возвращается чистый DataFrame."""
+    sample = pd.DataFrame({
+        "date": ["2022-01-15", "2022-01-16"],
+        "category": ["electronics", "home"],
+        "product": ["phone", "vacuum"],
+        "qty": [1, 2],
+        "price": [100, 200],
+        "region": ["msk", "spb"],
+    })
+    monkeypatch.setattr(pd, "read_csv", lambda path: sample.copy(deep=True))
+
+    clean_df, discarded, err = load_and_clean("dummy.csv")
+    assert err is None
+    assert discarded == 0
+    assert clean_df.shape[0] == 2
+    assert "qty" in clean_df.columns
+    assert clean_df["qty"].dtype == int
+
+
+def test_load_and_clean_discards_rows_with_nans(monkeypatch) -> None:
+    """Строки с пропусками в qty или price отбрасываются, счётчик корректен."""
+    sample = pd.DataFrame({
+        "date": ["2022-01-15", "2022-01-16", "2022-01-17"],
+        "category": ["a", "b", "c"],
+        "product": ["p1", "p2", "p3"],
+        "qty": [1, None, 3],
+        "price": [10.0, 20.0, None],
+        "region": ["r1", "r2", "r3"],
+    })
+    monkeypatch.setattr(pd, "read_csv", lambda path: sample.copy(deep=True))
+
+    clean_df, discarded, err = load_and_clean("dummy.csv")
+    assert err is None
+    assert discarded == 2  # строки 1 и 2 (0-index 1 и 2) имеют пропуски
+    assert clean_df.shape[0] == 1
+    assert clean_df.iloc[0]["product"] == "p1"
+
+
+def test_load_and_clean_schema_mismatch(monkeypatch) -> None:
+    """Отсутствует обязательная колонка – SCHEMA_MISMATCH."""
+    sample = pd.DataFrame({"date": ["2022-01-01"], "category": ["a"]})
+    monkeypatch.setattr(pd, "read_csv", lambda path: sample.copy(deep=True))
+
+    clean_df, discarded, err = load_and_clean("dummy.csv")
+    assert clean_df is None
+    assert discarded is None
+    assert err == "SCHEMA_MISMATCH"
+
+
+def test_load_and_clean_file_read_error(monkeypatch) -> None:
+    """Ошибка чтения файла – FILE_READ_ERROR."""
+    def raise_error(path):
+        raise OSError("file not found")
+    monkeypatch.setattr(pd, "read_csv", raise_error)
+
+    clean_df, discarded, err = load_and_clean("nonexistent.csv")
+    assert clean_df is None
+    assert discarded is None
+    assert err == "FILE_READ_ERROR"
+```
+
+```file:tests/test_module_02.py
+import pandas as pd
+
+from src.module_02 import add_month
+
+
+def sample_df():
+    return pd.DataFrame({
+        "date": ["2022-01-15", "2022-02-10", "2022-12-31"],
+        "category": ["a", "b", "c"],
+        "product": ["p1", "p2", "p3"],
+        "qty": [1, 2, 3],
+        "price": [10, 20, 30],
+        "region": ["r1", "r2", "r3"],
+    })
+
+
+def test_add_month_happy_path() -> None:
+    """Корректное извлечение номера месяца."""
+    df = sample_df()
+    enriched, err = add_month(df)
+    assert err is None
+    assert enriched is not None
+    assert list(enriched["month"]) == [1, 2, 12]
+
+
+def test_add_month_empty_input() -> None:
+    """Пустой DataFrame должен возвращать пустой с колонкой month."""
+    empty = pd.DataFrame(columns=["date", "category", "product", "qty", "price", "region"])
+    enriched, err = add_month(empty)
+    assert err is None
+    assert enriched is not None
+    assert enriched.empty
+    assert "month" in enriched.columns
+
+
+def test_add_month_invalid_date_format() -> None:
+    """Дата с неверным форматом -> INVALID_DATE_FORMAT."""
+    bad = sample_df()
+    bad.loc[1, "date"] = "2022-02-30"  # несуществующий день
+    enriched, err = add_month(bad)
+    assert enriched is None
+    assert err == "INVALID_DATE_FORMAT"
+```
+
+```file:tests/test_module_03.py
+"""Тесты для MOD-03: revenue_by_category."""
+
+import pandas as pd
+
+from src.module_03 import revenue_by_category
+
+
+def test_revenue_by_category_happy_path() -> None:
+    """Суммарная выручка по категориям на непустых данных."""
+    df = pd.DataFrame({
+        "category": ["electronics", "electronics", "home"],
+        "qty": [3, 2, 5],
+        "price": [45000, 45000, 2500],
+    })
+    result, err = revenue_by_category(df)
+    assert err is None
+    assert result is not None
+    # electronics: 3*45000 + 2*45000 = 225000, home: 5*2500 = 12500
+    assert result.loc[result["category"] == "electronics", "revenue"].item() == 225000
+    assert result.loc[result["category"] == "home", "revenue"].item() == 12500
+    # проверяем сортировку по убыванию
+    assert result.iloc[0]["category"] == "electronics"
+
+
+def test_revenue_by_category_empty_input() -> None:
+    """Пустой DataFrame -> EMPTY_DATASET."""
+    empty_df = pd.DataFrame(columns=["category", "qty", "price"])
+    result, err = revenue_by_category(empty_df)
+    assert result is None
+    assert err == "EMPTY_DATASET"
+```
+
+```file:tests/test_module_04.py
+"""Тесты для MOD-04: revenue_by_month."""
+
+import pandas as pd
+
+from src.module_04 import revenue_by_month
+
+
+def test_revenue_by_month_happy_path() -> None:
+    """Суммарная выручка по месяцам."""
+    df = pd.DataFrame({
+        "month": [1, 1, 2],
+        "qty": [1, 2, 3],
+        "price": [10, 20, 30],
+    })
+    result, err = revenue_by_month(df)
+    assert err is None
+    assert result is not None
+    # месяц 1: 1*10 + 2*20 = 50, месяц 2: 3*30 = 90
+    assert result.loc[result["month"] == 1, "revenue"].item() == 50
+    assert result.loc[result["month"] == 2, "revenue"].item() == 90
+    assert list(result["month"]) == [1, 2]  # проверка сортировки
+
+
+def test_revenue_by_month_empty_input() -> None:
+    """Пустой DataFrame -> EMPTY_DATASET."""
+    empty_df = pd.DataFrame(columns=["month", "qty", "price"])
+    result, err = revenue_by_month(empty_df)
+    assert result is None
+    assert err == "EMPTY_DATASET"
+```
+
+```file:tests/test_module_05.py
+"""Тесты для MOD-05: top_products."""
+
+import pandas as pd
+
+from src.module_05 import top_products
+
+
+def test_top_products_happy_path() -> None:
+    """Топ-3 продукта по выручке."""
+    df = pd.DataFrame({
+        "product": ["phone_x1", "laptop_a3", "vacuum_v8"],
+        "qty": [5, 1, 1],
+        "price": [45000, 92000, 18000],
+    })
+    result, err = top_products(df)
+    assert err is None
+    assert result is not None
+    # phone_x1: 5*45000 = 225000, laptop_a3: 92000, vacuum_v8: 18000
+    assert result.iloc[0]["product"] == "phone_x1"
+    assert result.iloc[0]["revenue"] == 225000
+    assert result.shape[0] == 3  # всего 3 продукта, все попали в топ
+
+    # проверка, что при >3 продуктах возвращается ровно 3
+    df2 = pd.DataFrame({
+        "product": ["a", "b", "c", "d"],
+        "qty": [1, 2, 3, 4],
+        "price": [10, 10, 10, 10],
+    })
+    result2, _ = top_products(df2)
+    assert len(result2) == 3
+    assert result2.iloc[0]["product"] == "d"  # revenue 40
+    assert result2.iloc[1]["revenue"] == 30
+    assert result2.iloc[2]["revenue"] == 20
+
+
+def test_top_products_empty_input() -> None:
+    """Пустой DataFrame -> EMPTY_DATASET."""
+    empty_df = pd.DataFrame(columns=["product", "qty", "price"])
+    result, err = top_products(empty_df)
+    assert result is None
+    assert err == "EMPTY_DATASET"
+```
+
+```file:tests/test_module_06.py
+"""Тесты для MOD-06: avg_check_by_region."""
+
+import pandas as pd
+
+from src.module_06 import avg_check_by_region
+
+
+def test_avg_check_by_region_happy_path() -> None:
+    """Средний чек по регионам."""
+    df = pd.DataFrame({
+        "region": ["msk", "msk", "spb"],
+        "qty": [1, 2, 3],
+        "price": [135000, 12500, 18000],
+    })
+    # msk: (1*135000 + 2*12500)/2 = (135000+25000)/2 = 80000
+    # spb: (3*18000)/1 = 54000
+    result, err = avg_check_by_region(df)
+    assert err is None
+    assert result is not None
+    assert result.loc[result["region"] == "msk", "avg_check"].item() == 80000.0
+    assert result.loc[result["region"] == "spb", "avg_check"].item() == 54000.0
+
+
+def test_avg_check_by_region_empty_input() -> None:
+    """Пустой DataFrame -> EMPTY_DATASET."""
+    empty_df = pd.DataFrame(columns=["region", "qty", "price"])
+    result, err = avg_check_by_region(empty_df)
+    assert result is None
+    assert err == "EMPTY_DATASET"
+```
+
+```file:tests/test_module_07.py
+"""Тесты для MOD-07: build_report."""
+
+import pandas as pd
+
+from src.module_07 import build_report
+
+
+def test_build_report_full() -> None:
+    """Сборка полного отчёта с корректными данными."""
+    cat_df = pd.DataFrame({"category": ["electronics", "home"], "revenue": [225000, 12500]})
+    month_df = pd.DataFrame({"month": [1], "revenue": [237500]})
+    top_df = pd.DataFrame({"product": ["phone_x1"], "revenue": [225000]})
+    region_df = pd.DataFrame({"region": ["msk"], "avg_check": [80000.0]})
+    discarded = 2
+
+    report, err = build_report(cat_df, month_df, top_df, region_df, discarded)
+    assert err is None
+    assert "=== Отчёт о продажах за квартал ===" in report
+    assert "Выручка по категориям:" in report
+    assert "225000" in report
+    assert "12500" in report
+    assert "Отброшено строк с пропусками: 2" in report
+
+
+def test_build_report_missing_aggregate() -> None:
+    """Если хотя бы один агрегат None -> MISSING_AGGREGATE."""
+    report, err = build_report(None, pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), 0)
+    assert report is None
+    assert err == "MISSING_AGGREGATE"
+```

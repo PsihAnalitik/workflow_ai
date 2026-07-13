@@ -1,0 +1,14 @@
+<wiki_change derived_from="input@v1">
+  <source_request>Добавь в wiki технологию duckdb (область python, статус allowed). Материал: DuckDB — встраиваемая колоночная СУБД для аналитики; выполняет SQL напрямую по CSV/Parquet файлам без загрузки в память (read_csv_auto, read_parquet); интегрируется с pandas (duckdb.query(df)); сильные стороны — оконные функции и джойны на данных больше памяти; НЕ подходит как транзакционная БД сервиса и для потоковой обработки.</source_request>
+  <summary>Добавление технологии DuckDB в каталог python как allowed-технологии для аналитических SQL-запросов по локальным файлам</summary>
+  <pages>
+    <page path="python/duckdb/index.md" action="add" unverified="false">
+      <purpose>карточка технологии: когда использовать / когда НЕ, шаблоны подключения, интеграция с pandas, good/bad примеры</purpose>
+      <index_row>| [duckdb](duckdb/index.md) | `python/duckdb` | встраиваемая аналитическая СУБД: SQL по CSV/Parquet, оконные функции, интеграция с pandas | allowed |</index_row>
+      <related>python/index.md, python/pandas/index.md</related>
+    </page>
+  </pages>
+  <index_updates>
+    <index path="python/index.md">добавить строку duckdb в таблицу реестра технологий</index>
+  </index_updates>
+</wiki_change>

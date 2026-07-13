@@ -1,0 +1,27 @@
+<wiki_change derived_from="input@v1">
+  <summary>Три страницы в methodology: no-op-спека, вербатим-исходники (source_page), артефакты и применение wiki-apply — по итогам доработок цеха wiki_maintainer из чатов</summary>
+  <pages>
+    <page path="methodology/no-op-spec.md" action="add" unverified="false">
+      <purpose>no-op-сценарий wiki_spec: когда материал уже покрыт — пустая спека, правило W0 ревьюера, пустые pages/index_updates в output_format</purpose>
+      <source_chunks>inline</source_chunks>
+      <index_row>| [no-op-spec](no-op-spec.md) | no-op-спека: когда агент распознаёт, что материал уже покрыт |</index_row>
+      <related>methodology/index.md, methodology/wiki-shop.md</related>
+    </page>
+    <page path="methodology/source-pages.md" action="add" unverified="false">
+      <purpose>вербатим-исходники в wiki: разделение пересказ + исходник, тег source_page в спеке, правило W6 ревьюера, материал не проходит через LLM</purpose>
+      <source_chunks>inline</source_chunks>
+      <index_row>| [source-pages](source-pages.md) | вербатим-исходники: source_page, пересказ + ссылка на полный текст |</index_row>
+      <related>methodology/index.md, methodology/no-op-spec.md</related>
+    </page>
+    <page path="methodology/wiki-artifacts.md" action="add" unverified="false">
+      <purpose>артефакты фабрики и wiki-apply: input.xml, wiki_spec.xml, wiki_pages, как спека материализуется в файлы wiki</purpose>
+      <source_chunks>inline</source_chunks>
+      <index_row>| [wiki-artifacts](wiki-artifacts.md) | артефакты цеха: input, spec, pages и применение wiki-apply |</index_row>
+      <related>methodology/index.md, methodology/wiki-shop.md</related>
+    </page>
+  </pages>
+  <index_updates>
+    <index path="methodology/index.md">добавить строки no-op-spec, source-pages, wiki-artifacts в таблицу страниц</index>
+  </index_updates>
+  <backlog>пусто</backlog>
+</wiki_change>

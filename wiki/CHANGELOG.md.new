@@ -1,0 +1,31 @@
+# CHANGELOG — wiki-база знаний
+
+## 2026-07-09 — первичная приёмка wiki как самостоятельного пакета (FR-21), v1
+
+**Основание: приёмка автора постановки v4 / плана v3 (цех wiki_maintainer).**
+Дальнейшие изменения — через цех wiki_maintainer + `wiki-apply` (строки для
+новых записей печатает applier); проверка: `verify-acceptance wiki/`.
+
+| Файл | Роль | sha256[:16] |
+|---|---|---|
+| `agents/index.md` | — | `a614a0bab348a9d8` |
+| `agents/prompts/examples/bad.md` | — | `7d8b810e03b735b4` |
+| `agents/prompts/examples/good.md` | — | `3f3e8c0d5ca04307` |
+| `agents/prompts/examples/index.md` | — | `e51db5a47bc614b9` |
+| `agents/prompts/examples/practices.md` | — | `562984b09ba04ac8` |
+| `agents/prompts/index.md` | — | `e2e5ef2d1ea1d50f` |
+| `agents/prompts/review.md` | — | `dc3b3dd11c5fbc48` |
+| `assets/index.md` | — | `3584c16b461c8233` |
+| `domains/index.md` | — | `e6c0ecb6a4f47f1c` |
+| `index.md` | — | `dd80f1a3bdbf1bd2` |
+| `methodology/examples/contracts.md` | — | `e3c3420814674825` |
+| `methodology/examples/developmentplan.md` | — | `f4ca19a45ba59ec2` |
+| `methodology/examples/domains.md` | — | `f62b399a382240d4` |
+| `methodology/examples/index.md` | — | `43a95421cf4dcf24` |
+| `methodology/examples/openapi.md` | — | `e69728583e969c98` |
+| `methodology/grace.md` | — | `3152af45113b418e` |
+| `methodology/index.md` | — | `1f0a4838687b033a` |
+| `python/fastapi/index.md` | — | `95394d49e96bccfa` |
+| `python/fastapi/testing.md` | — | `b49563386dad862a` |
+| `python/index.md` | — | `8f1a990761aaca6f` |
+| `python/pandas/index.md` | — | `a517b7c65c979903` |

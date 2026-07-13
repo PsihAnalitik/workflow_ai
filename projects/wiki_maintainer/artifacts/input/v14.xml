@@ -1,0 +1,34 @@
+Документация библиотеки duckdb по стандарту документации библиотек (правило пополнения python/index.md). Ровно ТРИ файла.
+
+1) Обнови python/duckdb/index.md (action=update): карточка библиотеки — добавь зафиксированную стабильную версию duckdb 1.5.4 (PyPI, 17.06.2026; yanked-версий нет; Python >=3.10); секции «Когда использовать / Когда НЕ использовать» и good/bad сохрани по смыслу; добавь короткий блок «Ключевые правила» (duckdb.sql — глобальное in-memory соединение, не потокобезопасно; для пакетов и потоков — отдельный duckdb.connect() на поток) и каталог сценарных страниц с ДВУМЯ строками: files-sql.md и pandas-integration.md.
+
+2) Добавь python/duckdb/files-sql.md (action=add): сценарий «SQL по CSV/Parquet-файлам» — прямой запрос по имени файла (автодетект), read_csv с явными параметрами (delim, header, columns), глоббинг нескольких файлов, обработка ошибок (ignore_errors, store_rejects), запись результатов (COPY TO, write_parquet/write_csv); good/bad: когда автодетект уместен, а когда нужна явная схема. related: index.md и pandas-integration.md.
+
+3) Добавь python/duckdb/pandas-integration.md (action=add): сценарий «интеграция с pandas» — replacement scans (DataFrame по имени переменной прямо в FROM), возврат результата .df(), другие конверсии (.fetchall, .pl, .arrow, .fetchnumpy); negative: ручной круг pandas → CSV → duckdb вместо replacement scan; шаринг глобального duckdb.sql между потоками. related: index.md, files-sql.md и ../pandas/index.md.
+
+Каждая страница компактная (лимит цеха), good/bad — 2–3 примера. В каждой ревизии возвращай ПОЛНЫЙ file map (все три файла).
+Материал: Проверено 2026-07-10, только официальные источники (pypi.org/project/duckdb; duckdb.org/docs/current: clients/python/overview, guides/python/sql_on_pandas, data/csv/overview).
+
+ВЕРСИЯ: duckdb 1.5.4 — текущая стабильная на PyPI (релиз 17.06.2026), yanked-версий нет. Требования: Python >=3.10 (по PyPI).
+
+PYTHON API (clients/python/overview):
+- duckdb.sql("SELECT 42").show() — глобальное in-memory соединение; НЕ потокобезопасно, каждому потоку — своё соединение.
+- duckdb.connect() — явное in-memory соединение; duckdb.connect("file.db") — персистентная БД; рекомендовано для пакетов и многопоточности. Конфиг: duckdb.connect(config=...) например threads.
+- Прямой SQL по файлам: duckdb.sql("SELECT * FROM 'example.csv'") и FROM 'example.parquet' — имя файла прямо в запросе.
+- Методы-читатели, возвращают Relation: duckdb.read_csv("example.csv"), duckdb.read_parquet("example.parquet"), duckdb.read_json(...).
+- Конверсия результата: .fetchall() — python-объекты; .df() — pandas DataFrame; .pl() — Polars; .arrow() — Arrow Table; .fetchnumpy() — NumPy.
+- Запись: duckdb.sql(...).write_parquet("out.parquet"); .write_csv("out.csv").
+
+SQL ПО PANDAS (guides/python/sql_on_pandas):
+- Replacement scans: имя переменной DataFrame используется прямо как имя таблицы — my_df = pd.DataFrame(...); duckdb.sql("SELECT * FROM my_df").df() — обращение к несуществующей таблице my_df подменяется чтением DataFrame.
+- DataFrame доступен только на чтение; аналогично поддерживаются Polars и PyArrow.
+
+CSV (data/csv/overview):
+- Автодетект (рекомендован для разведки): SELECT * FROM 'flights.csv' — «CSV sniffer» сам определяет разделитель, заголовок и типы.
+- Явная схема (для стабильных пайплайнов): read_csv('flights.csv', delim = '|', header = true, columns = ...) — параметр columns задаёт имена и типы и отключает автодетект; auto_detect = false.
+- Несколько файлов: read_csv('data/*.csv') — глоббинг.
+- Ошибочные строки: ignore_errors = true — пропустить битые строки; store_rejects = true — сложить отбраковку в таблицу; rejects_limit — предел записей об ошибках.
+- Загрузка в таблицу: CREATE TABLE ontime AS SELECT * FROM 'flights.csv'; либо COPY ontime FROM 'flights.csv' в готовую схему.
+- Запись: COPY table_name TO 'output.csv'.
+
+ИСТОЧНИКИ: https://pypi.org/project/duckdb/ ; https://duckdb.org/docs/current/clients/python/overview.html ; https://duckdb.org/docs/current/guides/python/sql_on_pandas.html ; https://duckdb.org/docs/current/data/csv/overview.html

@@ -1,0 +1,58 @@
+# wiki: python/httpx/retries (v1)
+
+Повторные попытки при HTTP-запросах через httpx. httpx сам по себе не
+повторяет запросы после получения ответа; его встроенный механизм ограничен
+транспортным уровнем.
+
+## Когда использовать
+- **Сетевые сбои при установке соединения** — `httpx.ConnectError`, `httpx.ConnectTimeout`. Достаточно `httpx.HTTPTransport(retries=N)`.
+- **Временные ошибки сервера (5xx, 429) или read-таймауты** — требуется внешний цикл с экспоненциальной задержкой (например, `tenacity`).
+- **Запросы идемпотентны** — GET, PUT, DELETE либо POST с ключом идемпотентности.
+
+## Когда НЕ использовать
+- **Ошибка клиента (400–499)** — запрос невалиден, повтор не исправит ответ. НЕ трать попытки.
+- **Запись без подтверждения идемпотентности** — повтор после `ReadTimeout` может продублировать побочный эффект на сервере.
+- **Управление отзывчивостью end-to-end** — повтор должен быть только на том уровне, где решается временный отказ; не оборачивай каждую операцию в retry.
+
+## Good: transport-level + application-level
+```python
+import httpx
+from tenacity import retry, retry_if_exception_type, wait_exponential
+
+transport = httpx.HTTPTransport(retries=3)    # только соединение
+client = httpx.Client(transport=transport)
+
+@retry(
+    retry=retry_if_exception_type((httpx.ConnectError, httpx.ReadTimeout)),
+    wait=wait_exponential(multiplier=1, min=1, max=10),
+    reraise=True,
+)
+def get_safe(url: str) -> httpx.Response:
+    response = client.get(url)
+    response.raise_for_status()
+    return response
+```
+
+## Bad 1: слепой retry без разбора ошибок
+```python
+# так НЕ надо — повторы при 4xx и дублирование побочных эффектов
+for attempt in range(3):
+    try:
+        return client.post(url, json=data)
+    except Exception:
+        continue
+```
+- 400-я ошибка повторится 3 раза, не став валидной.
+- После `ReadTimeout` эффект мог уже примениться на сервере — POST дублируется.
+
+## Bad 2: transport-retries используется как полноценный retry
+```python
+transport = httpx.HTTPTransport(retries=5)
+# Ожидается, что повторятся 5xx и read-таймауты — на самом деле нет
+client = httpx.Client(transport=transport)
+client.get("https://service/api")  # 503 не вызовет повтора
+```
+
+Исходник: [полный текст](retries.source.md)
+
+related: [python/httpx/index.md](index.md), [python/index.md](../index.md)

@@ -1,0 +1,31 @@
+<wiki_change derived_from="input@v1">
+  <source_request>Метаданные duckdb: ссылка на документацию. ТРИ файла, все action=update. Два из них — дословные копии без изменений (нужны, чтобы цели ссылок каталога были в file map): это уже принятые verified-страницы, пометку unverified НЕ ставить, не менять ни символа.
+
+1) python/duckdb/index.md: после строки со стабильной версией добавь строку «Документация: https://duckdb.org/docs/». Всё остальное — дословно.
+2) python/duckdb/files-sql.md: дословная копия текущего текста.
+3) python/duckdb/pandas-integration.md: дословная копия текущего текста.
+
+В каждой ревизии возвращай ПОЛНЫЙ file map (все три файла).
+Материал: Официальный корень документации duckdb (проверено 2026-07-10, источник прошлых прогонов): https://duckdb.org/docs/ — официальная документация DuckDB. Страницы files-sql.md и pandas-integration.md в этом прогоне не меняются (дословные копии принятых страниц).</source_request>
+  <summary>Обновление страницы python/duckdb/index.md для добавления ссылки на документацию; страницы files-sql.md и pandas-integration.md включены без изменений для полноты file map.</summary>
+  <pages>
+    <page path="python/duckdb/index.md" action="update" unverified="false">
+      <purpose>добавление строки «Документация: https://duckdb.org/docs/» после строки со стабильной версией</purpose>
+      <index_row>без изменений (страница уже присутствует в реестре python/index.md)</index_row>
+      <related>python/index.md, python/duckdb/files-sql.md, python/duckdb/pandas-integration.md, python/pandas/index.md</related>
+    </page>
+    <page path="python/duckdb/files-sql.md" action="update" unverified="false">
+      <purpose>дословная копия текущего текста (без изменений, для file map)</purpose>
+      <index_row>без изменений (страница не является точкой входа области)</index_row>
+      <related>python/duckdb/index.md</related>
+    </page>
+    <page path="python/duckdb/pandas-integration.md" action="update" unverified="false">
+      <purpose>дословная копия текущего текста (без изменений, для file map)</purpose>
+      <index_row>без изменений (страница не является точкой входа области)</index_row>
+      <related>python/duckdb/index.md</related>
+    </page>
+  </pages>
+  <index_updates>
+    <index path="python/index.md">без изменений (запись duckdb уже присутствует в реестре)</index>
+  </index_updates>
+</wiki_change>

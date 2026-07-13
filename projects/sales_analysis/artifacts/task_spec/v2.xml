@@ -1,0 +1,211 @@
+<analysis_spec derived_from="input@1">
+  <source_request>
+    Проанализируй продажи за квартал: посчитай выручку по категориям и по месяцам,
+найди топ-3 продукта по выручке и средний чек по регионам. Результаты нужны
+в виде таблиц для отчёта руководителю. Строки с пропусками в количестве или цене
+из расчётов исключай, но сообщай сколько их отброшено.
+  </source_request>
+
+  <dataset_summary>
+    <columns>
+      <column name="date" type="str" empty="0/28"/>
+      <column name="category" type="str" empty="0/28"/>
+      <column name="product" type="str" empty="0/28"/>
+      <column name="qty" type="int" empty="1/28"/>
+      <column name="price" type="int" empty="1/28"/>
+      <column name="region" type="str" empty="0/28"/>
+    </columns>
+    <note>Строки с отсутствующим qty или price исключаются из расчётов, но подсчитываются для информирования.</note>
+  </dataset_summary>
+
+  <goals>
+    <!-- G-01: пользователь получает сводку по категориям для оценки структуры продаж -->
+    <g id="G-01">Выручка по категориям</g>
+    <g id="G-02">Выручка по месяцам</g>
+    <g id="G-03">Топ-3 продукта по выручке</g>
+    <g id="G-04">Средний чек по регионам</g>
+    <!-- G-05: требование формата вывода, явно указанное в запросе -->
+    <g id="G-05">Результаты в виде таблиц для отчёта руководителю</g>
+    <g id="G-06">Информирование о количестве отброшенных строк с пропусками</g>
+    <!-- G-07: добавлено по итогам ревью – запрос требует анализ за квартал -->
+    <g id="G-07">Фильтрация данных за указанный квартал</g>
+  </goals>
+
+  <functional>
+    <!-- WHY: Параметризация квартала (start_date/end_date) сохраняет общность, не привязываясь к конкретному периоду в данных -->
+    <fr id="FR-01" covers="G-07" priority="must">
+      Фильтровать входные строки: оставлять только те, у которых date попадает в интервал [start_date, end_date], задаваемый параметрами квартала.
+      Колонки: date.
+    </fr>
+    <fr id="FR-02" covers="G-01" priority="must">
+      Рассчитать выручку (qty * price) по категориям, суммируя по категории.
+      Колонки: category, qty, price.
+    </fr>
+    <fr id="FR-03" covers="G-02" priority="must">
+      Рассчитать выручку (qty * price) по месяцам, извлекая месяц из date, суммируя по месяцу.
+      Колонки: date, qty, price.
+    </fr>
+    <fr id="FR-04" covers="G-03" priority="must">
+      Определить три продукта с наибольшей суммарной выручкой (qty * price). Если продуктов меньше трёх, вывести все.
+      Колонки: product, category, qty, price.
+    </fr>
+    <!-- WHY: Средний чек определён как средняя выручка на одну транзакцию (строку) – единственная интерпретация при отсутствии идентификатора чека -->
+    <fr id="FR-05" covers="G-04" priority="must">
+      Вычислить средний чек по регионам как sum(qty * price) / count(*) для каждого региона.
+      Колонки: region, qty, price.
+    </fr>
+    <fr id="FR-06" covers="G-06" priority="must">
+      Подсчитать количество строк, где qty IS NULL или price IS NULL (после фильтрации по дате), и исключить их из дальнейших расчётов.
+      Колонки: qty, price.
+    </fr>
+    <fr id="FR-07" covers="G-05" priority="must">
+      Сформировать итоговый отчёт, содержащий четыре таблицы (выручка по категориям, выручка по месяцам, топ-3 продукта, средний чек по регионам) и значение счётчика исключённых строк.
+    </fr>
+  </functional>
+
+  <modules>
+    <module id="MOD-01">
+      <responsibility>Фильтрация по датам</responsibility>
+      <covers>FR-01</covers>
+      <io>
+        <inputs>
+          <item name="dataset" type="list of records"/>
+          <item name="start_date" type="date"/>
+          <item name="end_date" type="date"/>
+        </inputs>
+        <outputs>
+          <item name="filtered_dataset" type="list of records"/>
+        </outputs>
+      </io>
+      <errors>
+        <error name="INVALID_DATE_RANGE">Если start_date &gt; end_date</error>
+        <error name="NO_DATA">Если после фильтрации нет строк – возвращается пустой набор</error>
+      </errors>
+    </module>
+
+    <module id="MOD-02">
+      <responsibility>Обнаружение и подсчёт строк с пропусками в qty или price</responsibility>
+      <covers>FR-06</covers>
+      <io>
+        <inputs>
+          <item name="filtered_dataset" type="list of records"/>
+        </inputs>
+        <outputs>
+          <item name="clean_dataset" type="list of records (без строк с пропусками qty/price)"/>
+          <item name="excluded_count" type="integer"/>
+        </outputs>
+      </io>
+      <errors>
+        <!-- нет критических ошибок, даже при пустом входе возвращается 0 и пустой список -->
+      </errors>
+    </module>
+
+    <module id="MOD-03">
+      <responsibility>Выручка по категориям</responsibility>
+      <covers>FR-02</covers>
+      <io>
+        <inputs>
+          <item name="clean_dataset" type="list of records"/>
+        </inputs>
+        <outputs>
+          <item name="revenue_by_category" type="table (category, revenue)"/>
+        </outputs>
+      </io>
+      <errors>
+        <error name="NO_DATA">При пустом входе возвращается пустая таблица</error>
+      </errors>
+    </module>
+
+    <module id="MOD-04">
+      <responsibility>Выручка по месяцам</responsibility>
+      <covers>FR-03</covers>
+      <io>
+        <inputs>
+          <item name="clean_dataset" type="list of records"/>
+        </inputs>
+        <outputs>
+          <item name="revenue_by_month" type="table (month, revenue)"/>
+        </outputs>
+      </io>
+      <errors>
+        <error name="NO_DATA">При пустом входе возвращается пустая таблица</error>
+      </errors>
+    </module>
+
+    <module id="MOD-05">
+      <responsibility>Топ-3 продуктов по выручке</responsibility>
+      <covers>FR-04</covers>
+      <io>
+        <inputs>
+          <item name="clean_dataset" type="list of records"/>
+        </inputs>
+        <outputs>
+          <item name="top3_products" type="table (product, category, revenue)"/>
+        </outputs>
+      </io>
+      <errors>
+        <error name="NO_DATA">При пустом входе возвращается пустая таблица</error>
+      </errors>
+    </module>
+
+    <module id="MOD-06">
+      <responsibility>Средний чек по регионам</responsibility>
+      <covers>FR-05</covers>
+      <io>
+        <inputs>
+          <item name="clean_dataset" type="list of records"/>
+        </inputs>
+        <outputs>
+          <item name="avg_receipt_by_region" type="table (region, avg_receipt)"/>
+        </outputs>
+      </io>
+      <errors>
+        <error name="NO_DATA">При пустом входе возвращается пустая таблица</error>
+      </errors>
+    </module>
+
+    <module id="MOD-07">
+      <responsibility>Форматирование итогового отчёта</responsibility>
+      <covers>FR-07</covers>
+      <io>
+        <inputs>
+          <item name="revenue_by_category" type="table"/>
+          <item name="revenue_by_month" type="table"/>
+          <item name="top3_products" type="table"/>
+          <item name="avg_receipt_by_region" type="table"/>
+          <item name="excluded_count" type="integer"/>
+        </inputs>
+        <outputs>
+          <item name="report" type="структурированный текст/документ с заголовками и таблицами"/>
+        </outputs>
+      </io>
+      <errors>
+        <!-- нет -->
+      </errors>
+    </module>
+  </modules>
+
+  <acceptance>
+    <criterion id="AC-01" for="FR-01">
+      При dataset с датами [2026-01-05, 2026-02-20, 2026-04-01] и параметрах квартала start=2026-01-01, end=2026-03-31 результатом будут только первые две строки.
+    </criterion>
+    <criterion id="AC-02" for="FR-02">
+      Для категории "electronics" с исходными строками (qty=3,price=45000), (qty=1,price=92000), (qty=2,price=45000) выручка = 3*45000 + 1*92000 + 2*45000 = 317000.
+    </criterion>
+    <criterion id="AC-03" for="FR-03">
+      Для месяца 2026-01 с двумя строками, дающими выручку 1000 и 2000, результат содержит месяц="2026-01" и revenue=3000.
+    </criterion>
+    <criterion id="AC-04" for="FR-04">
+      При выручках продуктов: A=1000, B=3000, C=1500, D=2000 результат возвращает продукты B,D,C именно в таком порядке.
+    </criterion>
+    <criterion id="AC-05" for="FR-05">
+      Для региона "msk" со строками: (qty=3,price=45000) и (qty=5,price=2500) средний чек = (135000+12500)/2 = 73750.
+    </criterion>
+    <criterion id="AC-06" for="FR-06">
+      Набор из 5 строк, где 1 строка имеет qty=null, 1 строка price=null → excluded_count=2, clean_dataset содержит 3 строки.
+    </criterion>
+    <criterion id="AC-07" for="FR-07">
+      Итоговый отчёт содержит секции с заголовками "Выручка по категориям", "Выручка по месяцам", "Топ-3 продукта", "Средний чек по регионам", а также строку "Исключено строк с пропусками: N" со значением N.
+    </criterion>
+  </acceptance>
+</analysis_spec>

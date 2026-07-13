@@ -1,0 +1,24 @@
+{
+  "_comment": "Вариант цеха прожарки С ПОЧИНКОЙ: roast → roast_fix (переписанный промпт, HITL обязателен — правку чужого промпта принимает человек). Запуск точечный: workshop map configs/prompt_roaster/graph.fix.json --files <выбранные промпты>.",
+  "project": "prompt_roaster",
+  "llm_profiles_path": "configs/prompt_roaster/models.json",
+  "material": {"chunk_chars": 4000, "chunk_overlap": 400, "inline_limit_chars": 0},
+  "nodes": [
+    {
+      "id": "roast",
+      "config_path": "configs/prompt_roaster/nodes/roast.json",
+      "gates": {"review_config_path": "configs/prompt_roaster/nodes/roast_review.json"}
+    },
+    {
+      "id": "roast_fix",
+      "config_path": "configs/prompt_roaster/nodes/roast_fix.json",
+      "gates": {
+        "review_config_path": "configs/prompt_roaster/nodes/roast_fix_review.json",
+        "hitl": true
+      }
+    }
+  ],
+  "edges": [
+    {"from": "roast", "to": "roast_fix"}
+  ]
+}

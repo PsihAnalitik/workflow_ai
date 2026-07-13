@@ -1,0 +1,325 @@
+```file:api.py
+"""
+FastAPI-биндинг для сервиса текстового поиска.
+"""
+from fastapi import FastAPI, Query
+from fastapi.responses import JSONResponse
+
+import matching
+import lemmatizer
+import root_search
+
+app = FastAPI()
+
+# Корпус документов устанавливается пользователем при старте; здесь заглушка
+corpus: dict[str, str] = {}
+
+
+@app.get("/search")
+def endpoint_search(query: str = Query(...), strategy: str = Query(...)):
+    result = matching.search(corpus, query, strategy)
+    if result is None:
+        return JSONResponse(
+            status_code=400,
+            content={"code": "EMPTY_QUERY", "message": "query пуст или состоит только из пробелов"},
+        )
+    return JSONResponse(status_code=200, content=result)
+
+
+@app.get("/normalize")
+def endpoint_normalize(wordform: str = Query(...)):
+    lemma = lemmatizer.normalize(wordform)
+    if lemma is None:
+        return JSONResponse(
+            status_code=400,
+            content={"code": "EMPTY_WORDFORM", "message": "wordform пуст или содержит пробелы"},
+        )
+    return JSONResponse(status_code=200, content={"lemma": lemma})
+
+
+@app.get("/root-search")
+def endpoint_root_search(query: str = Query(...)):
+    result = root_search.search(corpus, query)
+    if result is None:
+        return JSONResponse(
+            status_code=400,
+            content={"code": "EMPTY_QUERY", "message": "query пуст или состоит только из пробелов"},
+        )
+    return JSONResponse(status_code=200, content=result)
+```
+
+```file:lemmatizer.py
+"""
+Лемматизация русских словоформ через pymorphy3.
+"""
+import pymorphy3
+
+_morph = pymorphy3.MorphAnalyzer()
+
+
+def normalize(wordform: str) -> str | None:
+    """
+    Привести слово к лемме.
+
+    :param wordform: строка без пробелов и непустая.
+    :return: лемма или None при неверном вводе.
+    """
+    if not wordform or " " in wordform:
+        return None
+
+    parsed = _morph.parse(wordform)
+    if parsed:
+        return parsed[0].normal_form
+    # не-русское слово возвращаем как есть
+    return wordform
+```
+
+```file:matching.py
+"""
+Модуль поиска по корпусу: точное (EXACT) или пословное (WORD) сопоставление.
+Корпус — словарь {document_id: text}.
+"""
+
+from typing import List, Dict, Union
+
+
+def search(
+    corpus: Dict[str, str], query: str, strategy: str
+) -> Union[List[Dict[str, Union[str, int]]], None]:
+    """
+    Поиск в корпусе.
+
+    :param corpus: словарь document_id -> текст документа.
+    :param query: строка запроса (непустая).
+    :param strategy: 'EXACT' или 'WORD'.
+    :return: список Match или None при пустом запросе.
+    """
+    if not query or not query.strip():
+        return None
+
+    matches: list[dict] = []
+
+    for doc_id, text in corpus.items():
+        if strategy == "EXACT":
+            # Поиск всех позиций подстроки
+            start = 0
+            while True:
+                idx = text.find(query, start)
+                if idx == -1:
+                    break
+                matches.append(
+                    {"document_id": doc_id, "position": idx, "length": len(query)}
+                )
+                start = idx + 1
+        elif strategy == "WORD":
+            # Разбиваем на слова по пробельным символам, игнорируем пунктуацию просто split
+            words = text.split()
+            pos = 0
+            for w in words:
+                if w == query:
+                    matches.append(
+                        {"document_id": doc_id, "position": pos, "length": len(w)}
+                    )
+                # продвигаем позицию: длина слова + 1 (пробел) – упрощённо
+                pos += len(w) + 1
+        else:
+            return None  # неизвестная стратегия, можно трактовать как ошибку
+
+    return matches
+```
+
+```file:root_search.py
+"""
+Корневой поиск: композиция лемматизации и поиска по леммам в корпусе.
+"""
+from typing import List, Dict
+
+import lemmatizer
+import matching
+
+
+def search(corpus: Dict[str, str], query: str) -> List[Dict] | None:
+    """
+    Выполнить корневой поиск.
+
+    :param corpus: словарь document_id -> текст.
+    :param query: непустой запрос, может содержать несколько слов.
+    :return: список уникальных Match или None при пустом запросе.
+    """
+    if not query or not query.strip():
+        return None
+
+    words = query.split()
+    all_matches: list[dict] = []
+    seen = set()
+
+    for word in words:
+        lemma = lemmatizer.normalize(word)
+        if lemma is None:
+            # слово с пробелом? не должно случиться, но пропускаем
+            continue
+        res = matching.search(corpus, lemma, "EXACT")
+        if res is not None:
+            for m in res:
+                key = (m["document_id"], m["position"], m["length"])
+                if key not in seen:
+                    seen.add(key)
+                    all_matches.append(m)
+
+    return all_matches
+```
+
+```file:test_api.py
+from fastapi.testclient import TestClient
+
+import matching
+import api
+
+client = TestClient(api.app)
+
+
+def set_test_corpus():
+    # Устанавливаем тестовый корпус, удовлетворяющий ожиданиям
+    api.corpus = {"doc1": "кот на крыше", "doc2": "кот спит"}
+
+
+def test_search_exact_ok():
+    set_test_corpus()
+    resp = client.get("/search", params={"query": "кот", "strategy": "EXACT"})
+    assert resp.status_code == 200
+    data = resp.json()
+    assert isinstance(data, list)
+    assert any("doc1" in m["document_id"] for m in data)
+
+
+def test_search_empty_query():
+    set_test_corpus()
+    resp = client.get("/search", params={"query": "", "strategy": "EXACT"})
+    assert resp.status_code == 400
+    assert resp.json()["code"] == "EMPTY_QUERY"
+
+
+def test_normalize_ok():
+    resp = client.get("/normalize", params={"wordform": "кошку"})
+    assert resp.status_code == 200
+    assert resp.json() == {"lemma": "кошка"}
+
+
+def test_normalize_empty_wordform():
+    resp = client.get("/normalize", params={"wordform": ""})
+    assert resp.status_code == 400
+    assert resp.json()["code"] == "EMPTY_WORDFORM"
+
+
+def test_root_search_ok():
+    set_test_corpus()
+    resp = client.get("/root-search", params={"query": "кот"})
+    assert resp.status_code == 200
+    data = resp.json()
+    assert isinstance(data, list)
+    assert len(data) >= 2  # matches both docs
+
+
+def test_root_search_empty_query():
+    set_test_corpus()
+    resp = client.get("/root-search", params={"query": ""})
+    assert resp.status_code == 400
+    assert resp.json()["code"] == "EMPTY_QUERY"
+```
+
+```file:test_lemmatizer.py
+import lemmatizer
+
+
+def test_normalize_hedgehog():
+    assert lemmatizer.normalize("кошка") == "кошка"
+
+
+def test_normalize_mouse_accusative():
+    assert lemmatizer.normalize("мышку") == "мышка"
+
+
+def test_normalize_non_russian():
+    assert lemmatizer.normalize("hello") == "hello"
+
+
+def test_empty_wordform():
+    assert lemmatizer.normalize("") is None
+
+
+def test_wordform_with_spaces():
+    assert lemmatizer.normalize("кошка собака") is None
+```
+
+```file:test_matching.py
+import matching
+
+
+def sample_corpus() -> dict:
+    return {"doc1": "кот бегемот", "doc2": "кот собака"}
+
+
+def test_exact_search_found():
+    res = matching.search(sample_corpus(), "кот", "EXACT")
+    assert isinstance(res, list)
+    assert len(res) >= 1
+    assert any(
+        m["document_id"] == "doc1" and m["length"] == 3 for m in res
+    )
+
+
+def test_exact_search_not_found():
+    res = matching.search(sample_corpus(), "олень", "EXACT")
+    assert res == []
+
+
+def test_empty_query_returns_none():
+    assert matching.search(sample_corpus(), "", "EXACT") is None
+    assert matching.search(sample_corpus(), "   ", "WORD") is None
+
+
+def test_word_search_found():
+    res = matching.search(sample_corpus(), "кот", "WORD")
+    assert len(res) == 2  # present as whole word in both docs
+    docs = {m["document_id"] for m in res}
+    assert docs == {"doc1", "doc2"}
+
+
+def test_word_search_not_found():
+    # "бегемот" не равен "кот"
+    res = matching.search(sample_corpus(), "бегемот", "WORD")
+    assert len(res) == 1
+    assert res[0]["document_id"] == "doc1"
+```
+
+```file:test_root_search.py
+import root_search
+
+
+def corpus() -> dict:
+    return {"doc1": "кошка", "doc2": "мышка"}
+
+
+def test_root_search_multiword():
+    res = root_search.search(corpus(), "кошку мышку")
+    assert isinstance(res, list)
+    doc_ids = {m["document_id"] for m in res}
+    assert "doc1" in doc_ids
+    assert "doc2" in doc_ids
+
+
+def test_root_search_single_word():
+    res = root_search.search(corpus(), "кошка")
+    assert len(res) == 1
+    assert res[0]["document_id"] == "doc1"
+
+
+def test_root_search_empty_query():
+    assert root_search.search(corpus(), "") is None
+    assert root_search.search(corpus(), "   ") is None
+
+
+def test_root_search_no_matches():
+    res = root_search.search(corpus(), "слон")
+    assert res == []
+```

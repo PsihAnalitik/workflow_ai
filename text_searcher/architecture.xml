@@ -1,0 +1,20 @@
+<architecture project="text_search" version="1" derived_from="domains.xml@1, contracts.xml@1">
+
+  <containers>
+    <container id="K-search" domain="D-01">
+      <responsibility>Поиск вхождений запроса в корпус текстов</responsibility>
+      <!-- WHY: in-memory — корпус предзагружен (NFR-03/04), персистентность не нужна; индексация в out_of_scope -->
+      <storage type="in-memory"/>
+    </container>
+  </containers>
+
+  <channels/>   <!-- один контейнер → межсервисных каналов нет -->
+
+  <!-- WHY: офлайн (NFR-02), один процесс → gateway/LB/cache/broker не нужны -->
+  <infrastructure/>
+
+  <hotspots>
+    <!-- WHY: lemma-поиск горяч по латентности (NFR-04) из-за морфологии -->
+    <hotspot at="K-search" reason="латентность lemma-поиска (NFR-04)" mitigation-hint="кэш лемм корпуса"/>
+  </hotspots>
+</architecture>

@@ -1,0 +1,178 @@
+```file:python/fastapi/dependencies.md
+# wiki: FastAPI-зависимости (Depends) (v1)
+
+Сценарий использования зависимостей FastAPI: переиспользуемая логика, извлечение
+параметров, подмена в тестах. `ref: python/fastapi`.
+
+**Когда использовать:** общая логика (извлечение query/body, проверка прав,
+подключение к БД), которая повторяется в нескольких эндпоинтах; тесты с подменой
+зависимостей через `app.dependency_overrides`.
+
+**Когда НЕ использовать:** уникальная логика одного эндпоинта (встраивай в тело);
+зависимость меняет глобальное состояние, которое трудно безопасно подменить;
+если зависимость не несёт переиспользуемой функциональности.
+
+## Официальная форма: Annotated + Depends
+
+```python
+from typing import Annotated
+from fastapi import Depends, FastAPI
+
+app = FastAPI()
+
+def common_parameters(q: str | None = None, skip: int = 0, limit: int = 100) -> dict:
+    return {"q": q, "skip": skip, "limit": limit}
+
+CommonsDep = Annotated[dict, Depends(common_parameters)]
+
+@app.get("/items/")
+def read_items(commons: CommonsDep) -> dict:        # GOOD: один источник, автодополнение
+    return commons
+
+# BAD: Depends(common_parameters()) — ВЫЗОВ вместо передачи функции
+@app.get("/items/bad")
+def read_items_bad(commons: Annotated[dict, Depends(common_parameters())]) -> dict:
+    return commons
+```
+
+Правило: в `Depends()` передаётся сама функция, а не её вызов. Вызов с `()` создаёт
+объект один раз при старте приложения — не получит обновлённые параметры запроса.
+
+## Переиспользуемый type alias
+
+```python
+CommonsDep = Annotated[dict, Depends(common_parameters)]
+
+@app.get("/users/")
+def get_users(commons: CommonsDep): ...
+
+@app.get("/items/")
+def get_items(commons: CommonsDep): ...
+```
+
+Один источник истины для общей зависимости — типы и параметры не расходятся.
+
+## Подмена в тестах
+
+Подмена зависимости через `app.dependency_overrides`:
+
+```python
+from myapp.main import app
+from fastapi.testclient import TestClient
+
+client = TestClient(app)
+
+def override_dependency() -> dict:
+    return {"q": "test", "skip": 0, "limit": 10}
+
+def test_override() -> None:
+    # Ключ — исходная функция, значение — подменная
+    app.dependency_overrides[common_parameters] = override_dependency
+    response = client.get("/items/")
+    assert response.status_code == 200
+    # ОБЯЗАТЕЛЬНЫЙ СБРОС после теста
+    app.dependency_overrides.clear()
+
+# BAD: незачищенный override утекает в соседние тесты
+def test_another() -> None:
+    # common_parameters всё ещё переопределён — тест ломается или даёт ложный PASS
+    response = client.get("/items/")
+    assert response.json() != {"q": "real", "skip": 0, "limit": 100}
+```
+
+Всегда вызывай `app.dependency_overrides.clear()` в конце теста или в фикстуре с
+`yield`.
+
+## Related
+
+- [index.md](index.md) — общий обзор FastAPI
+- [testing.md](testing.md) — офлайн-тестирование
+```
+
+```file:python/fastapi/index.md
+# wiki: fastapi (v1)
+
+Стабильная версия: 0.139.0 (PyPI, 01.07.2026; Python >=3.10, Pydantic 2, Starlette).
+
+Каркас HTTP-микросервисов. `ref: python/fastapi`.
+
+Когда использовать: сервис с REST API по openapi-проекции контрактов;
+целевая среда — Docker Compose (антицели постановки §5).
+Когда НЕ использовать: разовый анализ данных без сетевого интерфейса
+(это класс задач [pandas](../pandas/index.md)); фоновые воркеры без HTTP.
+
+- [testing.md](testing.md) — офлайн-тестирование FastAPI-приложений
+  (TestClient, без сети — обязательное требование песочницы).
+- [dependencies.md](dependencies.md) — зависимости (Depends, Annotated, type alias), подмена в тестах
+
+related: [каталог python](../index.md), [dependencies.md](dependencies.md)
+```
+
+```file:python/fastapi/testing.md
+# wiki: FastAPI-сервис и его тесты в офлайн-песочнице (v1)
+
+fastapi 0.139.0. TestClient основан на HTTPX, требует установленный httpx.
+Тестовые функции — обычные `def`, не `async`; вызовы клиента — без `await`.
+Данные передаются через параметры `client.post(url, json=..., headers=..., cookies=...)`.
+Для подмены зависимостей используй `app.dependency_overrides` и сбрасывай `.clear()`
+после теста — см. [dependencies.md](dependencies.md).
+
+## Обработчики: ошибки контракта → {code, message} + 400
+
+```python
+# GOOD: код ошибки из контракта, машиночитаемое тело, статус 400 для ошибок входа
+from fastapi import FastAPI
+from fastapi.responses import JSONResponse
+
+app = FastAPI()
+
+@app.post("/search/exact")
+def search_exact(body: SearchRequest) -> JSONResponse:
+    result = exact_search(body.query)          # ядро возвращает Result-стиль, не бросает
+    if result is None:
+        return JSONResponse(status_code=400,
+                            content={"code": "EMPTY_QUERY", "message": "query пуст"})
+    return JSONResponse(status_code=200, content=result)
+
+# BAD: raise HTTPException(500, "error") на ошибку ВХОДА — клиентская ошибка стала серверной,
+# тело не содержит code из контракта
+```
+
+## Тесты: TestClient, без сети и файлов
+
+```python
+# GOOD: in-process клиент; фикстуры в тесте; проверяется и happy, и код ошибки
+from fastapi.testclient import TestClient
+from api import app
+
+client = TestClient(app)
+
+def test_exact_search_ok() -> None:
+    response = client.post("/search/exact", json={"query": "кот"})
+    assert response.status_code == 200
+
+def test_exact_search_empty_query_maps_to_400() -> None:
+    response = client.post("/search/exact", json={"query": ""})
+    assert response.status_code == 400
+    assert response.json()["code"] == "EMPTY_QUERY"
+
+# BAD: httpx.get("http://localhost:8000/...") — реальная сеть, в песочнице упадёт;
+# BAD: тест без проверки тела ошибки — код контракта не зафиксирован
+```
+
+## Ядро отдельно от транспорта
+
+```python
+# GOOD: ядро тестируется без FastAPI вообще (модульные тесты быстрее и точнее)
+def test_core_empty_query_returns_none() -> None:
+    assert exact_search("") is None
+```
+
+Правило: unit-тесты на каждый модуль ядра + TestClient-тесты на каждый endpoint;
+каждая ошибка контракта достижима хотя бы одним тестом.
+
+## Related
+
+- [index.md](index.md) — обзор FastAPI
+- [dependencies.md](dependencies.md) — зависимости и их подмена в тестах
+```

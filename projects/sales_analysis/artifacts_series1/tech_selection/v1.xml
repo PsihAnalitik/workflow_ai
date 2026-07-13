@@ -1,0 +1,13 @@
+<tech_stack derived_from="analysis_spec@1.0">
+  <tech ref="python/pandas">
+    <why>
+      Закрывает все функциональные требования ТЗ:
+      FR-01 (выручка по категориям — groupby + sum),
+      FR-02 (выручка по месяцам — извлечение месяца из даты + groupby + sum),
+      FR-03 (топ-3 продукта — groupby + sum + sort + head),
+      FR-04 (средний чек по регионам — groupby + mean),
+      FR-05 (подсчёт пропусков — isna + sum).
+      Статус preferred для класса «анализ табличных данных».
+    </why>
+  </tech>
+</tech_stack>

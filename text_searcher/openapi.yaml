@@ -1,0 +1,109 @@
+openapi: 3.1.0
+info:
+  title: text_search REST binding
+  version: "1"
+  # ПОЧЕМУ отдельный файл, а не часть contract.xml:
+  # это протокол-проекция абстрактного контракта. Уйдём на gRPC — заменится только
+  # этот файл, contract.xml не тронется (тест замены стека, R1).
+
+paths:
+  # ПОЧЕМУ три отдельных endpoint'а, а не один /search с параметром mode:
+  # вызывающий выбирает метод поиска самим маршрутом. Следствие — невалидный метод
+  # невозможен по построению (нет такого пути → 404 от роутера), поэтому в контракте
+  # отсутствует ошибка INVALID_MODE: её устраняет маршрутизация, а не наш код.
+  /search/exact:
+    post:
+      # ПОЧЕМУ POST, а не GET (хотя операция read-only):
+      # corpus — полезная нагрузка произвольного размера, его место в теле запроса;
+      # GET с корпусом в query-string ненадёжен (лимиты длины URL).
+      operationId: OP-search-exact          # шов с contract.xml: id операции = трассировка слоёв
+      requestBody: { $ref: '#/components/requestBodies/SearchReq' }
+      responses:
+        '200': { $ref: '#/components/responses/Ok' }
+        '400': { $ref: '#/components/responses/Err' }   # см. ПОЧЕМУ-400 у Error
+  /search/word:
+    post:
+      operationId: OP-search-word
+      requestBody: { $ref: '#/components/requestBodies/SearchReq' }   # тот же контракт входа, что у exact
+      responses:
+        '200': { $ref: '#/components/responses/Ok' }
+        '400': { $ref: '#/components/responses/Err' }
+  /search/lemma:
+    post:
+      operationId: OP-search-lemma
+      # ПОЧЕМУ у lemma отдельное тело (SearchLemmaReq): только этот метод трогает морфологию,
+      # значит только ему осмыслен параметр lang. У exact/word его нет намеренно.
+      requestBody: { $ref: '#/components/requestBodies/SearchLemmaReq' }
+      responses:
+        '200': { $ref: '#/components/responses/Ok' }
+        '400': { $ref: '#/components/responses/Err' }
+
+components:
+  schemas:
+    Match:
+      # ПОЧЕМУ doc_index/position/length: результат должен указывать НЕ только факт находки,
+      # но и ГДЕ она (FR-требование «выделение позиций»). doc_index — какой текст корпуса,
+      # position — смещение, length — длина совпадения (для lemma длина словоформы ≠ длине query).
+      type: object
+      required: [doc_index, position, length]
+      properties:
+        doc_index: { type: integer, minimum: 0 }   # minimum:0 ← проекция constraint ">=0" из контракта
+        position:  { type: integer, minimum: 0 }
+        length:    { type: integer, minimum: 1 }    # длина совпадения не бывает нулевой
+    SearchResult:
+      # ПОЧЕМУ found И count вместе: found даёт дешёвый булев ответ без обхода matches,
+      # count — агрегат без передачи всех позиций. Оба выводимы из matches, но избавляют
+      # потребителя от пересчёта (частый кейс — «есть ли вообще» / «сколько»).
+      type: object
+      required: [found, count, matches]
+      properties:
+        found:   { type: boolean }
+        count:   { type: integer, minimum: 0 }
+        matches: { type: array, items: { $ref: '#/components/schemas/Match' } }
+    Error:
+      # ПОЧЕМУ {code, message}: code зеркалит <errors> контракта (машиночитаемо, стабильно),
+      # message — для человека. enum кодов фиксирован контрактом → потребитель ветвится по code,
+      # а не парсит текст.
+      type: object
+      required: [code, message]
+      properties:
+        code:    { type: string, enum: [EMPTY_QUERY, EMPTY_CORPUS] }
+        message: { type: string }
+
+  requestBodies:
+    SearchReq:
+      required: true
+      content:
+        application/json:           # ПОЧЕМУ json: языко-нейтральная граница, совпадает с абстрактными типами контракта
+          schema:
+            type: object
+            required: [query, corpus]
+            properties:
+              # ПОЧЕМУ minLength/minItems здесь: это проекция constraint "непустая"/"непустой"
+              # из контракта. Валидация на границе → ошибки EMPTY_* ловятся до бизнес-логики (400).
+              query:  { type: string, minLength: 1 }
+              corpus: { type: array, items: { type: string }, minItems: 1 }
+    SearchLemmaReq:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [query, corpus]
+            properties:
+              query:  { type: string, minLength: 1 }
+              corpus: { type: array, items: { type: string }, minItems: 1 }
+              # ПОЧЕМУ nullable + не в required: lang опционален. null/отсутствие → автоопределение
+              # языка (NFR-05). enum ограничивает поддерживаемые языки; не-RU → fallback на word.
+              lang:   { type: string, enum: [ru, en], nullable: true }
+
+  responses:
+    Ok:
+      description: успех
+      content: { application/json: { schema: { $ref: '#/components/schemas/SearchResult' } } }
+    Err:
+      # ПОЧЕМУ-400: EMPTY_QUERY/EMPTY_CORPUS — это ошибки ВХОДА (вина клиента), а не сервера →
+      # семантически 4xx. Серверные сбои отдадут 500 (вне контракта операции).
+      # Неизвестный путь (/search/foo) → 404 роутера — это и есть «бывший INVALID_MODE».
+      description: ошибка валидации входа
+      content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }

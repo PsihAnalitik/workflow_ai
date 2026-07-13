@@ -1,0 +1,13 @@
+<wiki_change derived_from="input@v1">
+  <source_request>Обнови страницу methodology/workshop-cli.md (action=update): в описании MCP-инструмента wiki_update добавь уточнение — при обновлении существующих страниц их текущий текст подставляется конвейеру автоматически из принятой спецификации, передавать его в material не нужно; material нужен только для нового фактического содержания. Больше ничего на странице не меняй. Материал (проверенный, из кода): стадия wiki_pages цеха получает update-страницы динамическими wiki-ссылками из принятой wiki_change_spec.</source_request>
+  <summary>Уточнение поведения MCP-инструмента wiki_update: текущий текст страницы подтягивается цехом автоматически, параметр material предназначен только для нового фактического содержания.</summary>
+  <pages>
+    <page path="methodology/workshop-cli.md" action="update" unverified="false">
+      <purpose>В описание инструмента wiki_update добавлено правило: при обновлении существующих страниц их актуальный текст конвейер получает автоматически из принятой спецификации; передавать его в material не требуется, material используется только для привнесения нового фактического материала.</purpose>
+      <related>methodology/index.md</related>
+    </page>
+  </pages>
+  <index_updates>
+    <index path="methodology/index.md">none</index>
+  </index_updates>
+</wiki_change>

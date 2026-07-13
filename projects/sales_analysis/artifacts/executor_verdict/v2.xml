@@ -1,0 +1,13 @@
+<verdict derived_from="analysis_spec.xml@1, executor@1">
+  <coverage>
+    <fr id="FR-01" status="covered" module="filter_by_date.py/filter_by_date" test="test_filter_by_date.py"/>
+    <fr id="FR-02" status="covered" module="revenue_by_category.py/revenue_by_category" test="test_revenue_by_category.py"/>
+    <fr id="FR-03" status="covered" module="revenue_by_month.py/revenue_by_month" test="test_revenue_by_month.py"/>
+    <fr id="FR-04" status="covered" module="top3_products.py/top3_products" test="test_top3_products.py"/>
+    <fr id="FR-05" status="covered" module="avg_receipt_by_region.py/avg_receipt_by_region" test="test_avg_receipt_by_region.py"/>
+    <fr id="FR-06" status="covered" module="exclude_missing.py/exclude_missing" test="test_exclude_missing.py"/>
+    <fr id="FR-07" status="covered" module="report_formatter.py/format_report" test="test_report_formatter.py"/>
+  </coverage>
+  <decision>READY</decision>
+  <reasons/>
+</verdict>

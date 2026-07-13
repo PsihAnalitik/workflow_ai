@@ -1,0 +1,6 @@
+{
+  "base_prompt_path": "configs/prompt_roaster/prompts/roast_fix_review.base.md",
+  "stage_map_path": "configs/prompt_roaster/prompts/empty.stage.md",
+  "wiki_refs": [{"path": "wiki/agents/prompts/review.md", "version": "v1"}],
+  "llm_profile": "default"
+}

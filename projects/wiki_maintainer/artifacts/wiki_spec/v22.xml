@@ -1,0 +1,28 @@
+<wiki_change derived_from="input@v1">
+  <source_request>добавь страницу-хронику сессии разработки фабрики в Claude Code (10–11 июля 2026) — кейс совместной работы человека и LLM-агента над agent_workshop. Предлагаемое размещение — область methodology (рядом с материалами о процессе GRACE), путь вида methodology/case-claude-code-session.md; related — методология GRACE и agents/prompts (методология прожарки). Материал ниже — страница verified.
+
+Материал (хроника сессии):
+
+День 1 (10.07). Проверка инструментов: MCP-сервер agent-workshop и web_search (Tavily) живые — узел wiki_spec цеха wiki_maintainer при живом прогоне дважды вызвал web_search (подтвердил версию httpx 0.28.1 и имя пакета), карточка httpx применена wiki-apply.
+
+Цех llm_wiki, DevelopmentPlan v6, модуль M-22 workshop/material.py: «вики из чатов» — материал (текст выгрузок и/или строки-URL) чанкуется по заголовкам (id вида d1:03); вход больше inline_limit_chars идёт узлам оглавлением, содержимое читается инструментами material_search/material_get; протокол Retriever — seam под векторный RAG (MVP лексический). Страницы спеки трассируются к чанкам-источникам (source_chunks). Живой smoke: из выгрузки чата о платежах и поиске построены области payments/ и search/ с точными фактами (идемпотентность по event.id, активация по invoice.paid).
+
+Исследование продукта ailab тремя параллельными разведчиками (карта сервисов, RAG-пайплайн, агентные паттерны). Заимствовано в v7: retry-стратегия поиска в ОПИСАНИИ инструмента (переформулируй → обобщи → после 3 неудач вернись к оглавлению); chunk_overlap (дефолт 400 на чанк 4000); инструменты wiki_search/wiki_get — адресная маршрутизация узла по wiki вместо тотального бандла (включены у wiki_maintainer.wiki_spec); RemoteBGEM3Retriever под контракт POST /encode сервиса bge-m3 из smart-assistant, включение через env BGE_M3_SERVICE_URL (сам образ сервиса на машине не найден — только клиент). Урок ailab: даже большой продукт живёт на dense top-k без reranking, а написанные «на вырост» сплиттеры мертвы — Simplicity First подтверждён.
+
+День 2 (11.07). v8: модуль M-23 map_driver — массовый прогон цеха по элементам (файлы по glob / таблицы schema.yaml), под-стор на элемент, ошибки не останавливают остальных, --resume пропускает принятые, сводка map/summary.md. Цеха prompt_roaster (прожарка промптов по методологии П1–П8 из wiki agents/prompts; материал только через material_get — в промптах литеральные двойные скобки, TSK-2207 санитизирует TOC) и table_validator. Результаты на smart-assistant: 26 промптов — 22 FAIL, 64 находки p3, системно: перегрузка правилами (П3, 23), ввод раньше правил (П4, 18), ввод не помечен как данные (П8, 17); 53 таблицы schema.yaml — 45 FAIL, топ-класс дефектов — AVG на метриках-средних (переусреднение ratio) вопреки собственным note.
+
+v9: пилот .workflow_ai внутри smart-assistant (фабричный корень с configs/wiki/templates/Makefile; пути фабрики относительны cwd — ядро не менялось). Модуль M-24 db_query: read-only SELECT к БД (валидация до обращения, принудительный LIMIT, DSN только из WORKSHOP_DB_DSN, без DSN — текстовая пометка «БД недоступна»). Шаблонные дет-проверки структур (TSK-2304) и трёхсторонний элемент schema.yaml+tools.yaml+table_cards (TSK-2305): metric_policies сверяются с fact_metrics — ошибка AVG у trip_cnt_per_1_vehicle оказалась продублирована в обоих артефактах. Стадия roast_fix: переписанный промпт с сохранением контракта (плейсхолдеры/поля/enum дословно) и HITL-приёмкой. Подготовка к публикации на GitHub: .gitignore (секреты, runs/ и map/ с материалами стороннего проекта не коммитятся), скан хардкода ключей чист.
+
+Уроки сессии: (1) правило ревью без негативного случая зацикливает генератора — кейсы R3 «неадресная локация» при структурном дефекте всего файла и V3-педантизм к строкам «находок нет»; лечится негативным случаем в правиле и жёстким шаблоном формата отчёта. (2) Промпт-пример в спецификаторе должен покрывать краевой случай (новая область + leaf-страница), иначе цикл спека-ревью не сходится. (3) Батч-механику (map) правильно держать в детерминированном драйвере, а не в FSM оркестратора.</source_request>
+  <summary>Добавление страницы-хроники двухдневной сессии разработки фабрики agent_workshop в Claude Code (10–11.07.2026) — кейс совместной работы человека и LLM-агента в области methodology.</summary>
+  <pages>
+    <page path="methodology/case-claude-code-session.md" action="add" unverified="false">
+      <purpose>Хроника сессии разработки фабрики agent_workshop: живой кейс совместной работы человека и LLM-агента, итерации v6→v9, уроки проектирования промптов, батч-механики и HITL-приёмки.</purpose>
+      <index_row>- [case-claude-code-session.md](case-claude-code-session.md) — хроника сессии 10–11.07.2026: совместная разработка фабрики человек + LLM-агент в Claude Code</index_row>
+      <related>methodology/grace.md, agents/prompts/index.md</related>
+    </page>
+  </pages>
+  <index_updates>
+    <index path="methodology/index.md">добавить строку `- [case-claude-code-session.md](case-claude-code-session.md) — хроника сессии 10–11.07.2026: совместная разработка фабрики человек + LLM-агент в Claude Code` в bullet-список после `workshop-cli.md`</index>
+  </index_updates>
+</wiki_change>

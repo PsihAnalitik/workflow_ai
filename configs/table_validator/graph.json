@@ -1,0 +1,13 @@
+{
+  "_comment": "Цех валидации таблиц schema.yaml (M-23, запрос автора 11.07.2026). Элемент map-прогона = одна таблица (YAML-фрагмент + карточка + детерминированные находки TSK-2303). Материал маленький и без двойных скобок — идёт инлайном, блок material не нужен. HITL нет: сводку читает человек.",
+  "project": "table_validator",
+  "llm_profiles_path": "configs/table_validator/models.json",
+  "nodes": [
+    {
+      "id": "table_check",
+      "config_path": "configs/table_validator/nodes/table_check.json",
+      "gates": {"review_config_path": "configs/table_validator/nodes/table_check_review.json"}
+    }
+  ],
+  "edges": []
+}

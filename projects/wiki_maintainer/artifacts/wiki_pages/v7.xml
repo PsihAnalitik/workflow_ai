@@ -1,0 +1,172 @@
+```file:python/fastapi/errors.md
+# wiki: fastapi — обработка ошибок (v1)
+
+Сценарий: централизованная обработка ошибок, кастомные исключения, формат ответа.
+
+Когда использовать:
+- нужно вернуть HTTP-ошибку с телом (detail) и заголовками;
+- бизнес-логика выбрасывает собственные исключения — требуется единый формат ответа;
+- требуется изменить поведение валидационных ошибок (например, статус 400 вместо 422, тело `{code, message}`).
+
+Когда НЕ использовать:
+- ошибка обрабатывается локально и не требует HTTP-ответа (просто залогировать);
+- нужно вернуть не-HTTP ошибку (например, в фоновом воркере);
+- кастомный обработчик не добавляет ценности поверх стандартного (не дублируй http_exception_handler без причины).
+
+## Good
+
+```python
+from fastapi import HTTPException
+
+@app.get("/items/{item_id}")
+async def read_item(item_id: int):
+    if item_id not in db:
+        raise HTTPException(status_code=404, detail="Item not found")  # raise, не return
+    return db[item_id]
+```
+
+```python
+from fastapi import Request
+from fastapi.responses import JSONResponse
+
+class BusinessError(Exception):
+    def __init__(self, message: str, code: str):
+        self.message = message
+        self.code = code
+
+@app.exception_handler(BusinessError)
+async def business_exception_handler(request: Request, exc: BusinessError):
+    return JSONResponse(
+        status_code=409,
+        content={"code": exc.code, "message": exc.message},
+    )
+```
+
+```python
+from fastapi.exceptions import RequestValidationError
+from fastapi.encoders import jsonable_encoder
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    return JSONResponse(
+        status_code=400,                                          # меняем статус
+        content={"code": "VALIDATION_ERROR", "message": exc.errors()},
+    )
+```
+
+## Bad
+
+```python
+if item_id not in db:
+    return HTTPException(status_code=404, detail="Not found")     # return вместо raise — не работает
+```
+
+```python
+try:
+    process(item)
+except ValueError:
+    raise HTTPException(status_code=500, detail="Internal error") # маскирует ошибку входа под 500
+```
+
+```python
+@app.exception_handler(RequestValidationError)
+async def handler(request, exc):
+    return JSONResponse(status_code=422, content=exc.errors())    # сырой список ошибок Pydantic наружу
+```
+
+related: [fastapi](index.md), [модели запроса и ответа](validation.md)
+```
+
+```file:python/fastapi/index.md
+# wiki: fastapi (v1)
+
+Стабильная версия: 0.139.0 (PyPI, 01.07.2026; Python >=3.10, Pydantic 2, Starlette).
+
+Каркас HTTP-микросервисов. `ref: python/fastapi`.
+
+Когда использовать: сервис с REST API по openapi-проекции контрактов;
+целевая среда — Docker Compose (антицели постановки §5).
+Когда НЕ использовать: разовый анализ данных без сетевого интерфейса
+(это класс задач [pandas](../pandas/index.md)); фоновые воркеры без HTTP.
+
+- [testing.md](testing.md) — офлайн-тестирование FastAPI-приложений
+  (TestClient, без сети — обязательное требование песочницы).
+- [validation.md](validation.md) — модели запроса и ответа (Pydantic body, path/query, фильтрация полей)
+- [errors.md](errors.md) — обработка ошибок (HTTPException, exception_handler, переопределение валидации)
+
+related: [каталог python](../index.md), [validation.md](validation.md), [errors.md](errors.md)
+```
+
+```file:python/fastapi/validation.md
+# wiki: fastapi — модели запроса и ответа (v1)
+
+Сценарий: определение и валидация данных запроса/ответа через Pydantic-модели.
+
+Когда использовать:
+- тело запроса — Pydantic-модель (не dict/список примитивов);
+- нужно автоматически получить 422 с детализацией по полям при невалидном входе;
+- ответ должен фильтровать поля (например, скрыть password) или валидироваться;
+- частичное обновление (PATCH) — только переданные поля.
+
+Когда НЕ использовать:
+- тело запроса — простой тип (int, str) без вложенной структуры (используй query/body с явным `Body()`);
+- ответ не требует фильтрации и схема OpenAPI не важна — можно вернуть dict;
+- потоковые ответы или бинарные данные (FileResponse, StreamingResponse).
+
+## Good
+
+```python
+from pydantic import BaseModel
+
+class Item(BaseModel):
+    name: str
+    description: str | None = None
+    price: float
+
+@app.post("/items/")
+async def create_item(item: Item) -> Item:          # аннотация возврата = валидация + схема
+    return item                                      # автоматический 422 при невалидном входе
+```
+
+```python
+class UserIn(BaseModel):
+    username: str
+    password: str
+
+class UserOut(BaseModel):
+    username: str
+
+@app.post("/users/", response_model=UserOut)         # response_model фильтрует password
+async def create_user(user: UserIn):
+    return user                                      # UserOut отбросит password
+```
+
+```python
+@app.patch("/items/{item_id}", response_model_exclude_unset=True)
+async def update_item(item_id: int, item: Item):
+    stored = db.get(item_id)
+    updated = stored.copy(update=item.model_dump(exclude_unset=True))
+    return updated                                  # в ответе только изменённые поля
+```
+
+## Bad
+
+```python
+@app.post("/items/")
+async def create_item(item: dict):                  # нет валидации, ручной разбор
+    name = item.get("name")
+    ...
+```
+
+```python
+@app.post("/users/")
+async def create_user(user: UserIn) -> dict:        # возврат dict без response_model
+    return user.model_dump()                        # password утекает в ответ
+```
+
+```python
+item.dict()                                         # Pydantic 2: устарело, используй model_dump()
+```
+
+related: [fastapi](index.md), [обработка ошибок](errors.md)
+```

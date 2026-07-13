@@ -1,0 +1,14 @@
+<verdict derived_from="analysis_spec.xml@1.0, executor@unknown">
+  <coverage>
+    <fr id="FR-01" status="covered" module="revenue_by_category.py (revenue_by_category)" test="test_revenue_by_category.py"/>
+    <fr id="FR-02" status="covered" module="revenue_by_month.py (revenue_by_month)" test="test_revenue_by_month.py"/>
+    <fr id="FR-03" status="missing" module="—" test="—"/>
+    <fr id="FR-04" status="missing" module="—" test="—"/>
+    <fr id="FR-05" status="covered" module="data_cleaning.py (clean_data)" test="test_data_cleaning.py"/>
+  </coverage>
+  <decision>NOT_READY</decision>
+  <reasons>
+    FR-03: отсутствует реализация и тесты модуля top-3 продуктов по выручке (MOD-04).
+    FR-04: отсутствует реализация и тесты модуля среднего чека по регионам (MOD-05).
+  </reasons>
+</verdict>

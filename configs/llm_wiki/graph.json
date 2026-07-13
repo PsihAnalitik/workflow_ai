@@ -1,0 +1,27 @@
+{
+  "_comment": "Цех llm_wiki: вики из чатов/документов пользователя (M-22). Рабочий режим — HITL на обеих стадиях; материал чанкуется, большой вход идёт узлам оглавлением + material_*.",
+  "project": "llm_wiki",
+  "llm_profiles_path": "configs/llm_wiki/models.json",
+  "material": {"chunk_chars": 4000, "inline_limit_chars": 12000},
+  "nodes": [
+    {
+      "id": "wiki_spec",
+      "config_path": "configs/llm_wiki/nodes/wiki_spec.json",
+      "gates": {
+        "review_config_path": "configs/llm_wiki/nodes/wiki_spec_review.json",
+        "hitl": true
+      }
+    },
+    {
+      "id": "wiki_pages",
+      "config_path": "configs/llm_wiki/nodes/wiki_pages.json",
+      "gates": {
+        "review_config_path": "configs/llm_wiki/nodes/wiki_pages_review.json",
+        "hitl": true
+      }
+    }
+  ],
+  "edges": [
+    {"from": "wiki_spec", "to": "wiki_pages"}
+  ]
+}

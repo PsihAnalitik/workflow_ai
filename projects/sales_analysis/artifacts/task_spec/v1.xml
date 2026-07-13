@@ -1,0 +1,188 @@
+<analysis_spec derived_from="input@1.0">
+  <!-- WHY: Запрос пользователя не перефразирован, вставлен verbatim для однозначности трассировки. -->
+  <source_request>
+    Проанализируй продажи за квартал: посчитай выручку по категориям и по месяцам,
+найди топ-3 продукта по выручке и средний чек по регионам. Результаты нужны
+в виде таблиц для отчёта руководителю. Строки с пропусками в количестве или цене
+из расчётов исключай, но сообщай сколько их отброшено.
+  </source_request>
+
+  <dataset_summary>
+    <column name="date" type="str" empty="0/28"/>
+    <column name="category" type="str" empty="0/28"/>
+    <column name="product" type="str" empty="0/28"/>
+    <column name="qty" type="int" empty="1/28"/>
+    <column name="price" type="int" empty="1/28"/>
+    <column name="region" type="str" empty="0/28"/>
+  </dataset_summary>
+
+  <goals>
+    <!-- WHY: Каждая цель описывает конечное применение результата, а не способ расчёта. -->
+    <goal id="G-01">
+      <description>Получить общую выручку по каждой категории товаров для сравнения доходности категорий.</description>
+      <usage>Руководитель видит вклад каждой категории в общий доход.</usage>
+    </goal>
+    <goal id="G-02">
+      <description>Получить динамику выручки по месяцам внутри квартала для выявления трендов.</description>
+      <usage>Руководитель отслеживает рост/спад продаж помесячно.</usage>
+    </goal>
+    <goal id="G-03">
+      <description>Идентифицировать три продукта, принёсших наибольшую выручку, для фокуса на лидерах продаж.</description>
+      <usage>Руководитель принимает решения о закупках или продвижении этих продуктов.</usage>
+    </goal>
+    <goal id="G-04">
+      <description>Рассчитать средний чек (выручка на одну транзакцию) по каждому региону для сравнения покупательской способности.</description>
+      <usage>Руководитель оценивает эффективность региональных продаж.</usage>
+    </goal>
+    <goal id="G-05">
+      <description>Узнать точное количество записей, исключённых из-за пропусков в количестве или цене, для обеспечения прозрачности отчёта.</description>
+      <usage>Руководитель понимает объём потерянных данных и возможное влияние на точность метрик.</usage>
+    </goal>
+  </goals>
+
+  <functional>
+    <!-- WHY: price трактуется как цена за единицу товара, выручка = qty * price. Это общепринятая бизнес-семантика при наличии колонок 'qty' и 'price'. -->
+    <fr id="FR-01" covers="G-01" priority="must">
+      <description>Суммировать выручку (qty × price) по каждой уникальной категории, игнорируя строки с отсутствующим qty или price.</description>
+      <required_columns>category, qty, price</required_columns>
+    </fr>
+    <fr id="FR-02" covers="G-02" priority="must">
+      <!-- WHY: Месяц извлекается как год-месяц ('YYYY-MM') из поля date формата YYYY-MM-DD – минимальная трансформация без внешних предположений. -->
+      <description>Суммировать выручку (qty × price) по каждому уникальному месяцу (год-месяц на основе date).</description>
+      <required_columns>date, qty, price</required_columns>
+    </fr>
+    <fr id="FR-03" covers="G-03" priority="must">
+      <description>Найти три продукта с наибольшей суммарной выручкой (qty × price), с сортировкой по убыванию выручки.</description>
+      <required_columns>product, qty, price</required_columns>
+    </fr>
+    <fr id="FR-04" covers="G-04" priority="must">
+      <!-- WHY: Средний чек = общая выручка региона / количество транзакций (строк) в нём. Такая формула соответствует типичному отраслевому определению. -->
+      <description>Рассчитать средний чек по каждому региону как сумма(qty × price) / количество транзакций в регионе.</description>
+      <required_columns>region, qty, price</required_columns>
+    </fr>
+    <fr id="FR-05" covers="G-05" priority="must">
+      <description>Подсчитать количество строк всего датасета, где qty или price пропущены, и вернуть это число.</description>
+      <required_columns>qty, price</required_columns>
+    </fr>
+  </functional>
+
+  <modules>
+    <!-- WHY: Отдельный модуль очистки данных изолирует логику исключения пропусков и её тестирование. Остальные модули работают с уже валидными данными, избегая дублирования правил. -->
+    <module id="MOD-01">
+      <responsibility>Фильтрует строки с отсутствующими значениями qty или price, подсчитывает количество отброшенных записей.</responsibility>
+      <covers>
+        <covers>FR-05</covers>
+      </covers>
+      <io>
+        <inputs>
+          <input name="raw_rows" type="table(date:str, category:str, product:str, qty:int?, price:int?, region:str)"/>
+        </inputs>
+        <outputs>
+          <output name="cleaned_rows" type="table(date:str, category:str, product:str, qty:int, price:int, region:str)"/>
+          <output name="discarded_count" type="integer"/>
+        </outputs>
+      </io>
+      <errors>
+        <!-- Весь датасет без валидных строк – ошибкой не считается, просто cleaned_rows пуст, discarded_count = total. -->
+      </errors>
+    </module>
+
+    <module id="MOD-02">
+      <responsibility>Агрегирует очищенные данные: группирует по category и вычисляет сумму выручки (qty × price).</responsibility>
+      <covers>
+        <covers>FR-01</covers>
+      </covers>
+      <io>
+        <inputs>
+          <input name="cleaned_rows" type="table(date:str, category:str, product:str, qty:int, price:int, region:str)"/>
+        </inputs>
+        <outputs>
+          <output name="revenue_by_category" type="table(category:str, revenue:int)"/>
+        </outputs>
+      </io>
+      <errors>
+        <condition input="cleaned_rows" is="empty" result="empty table returned"/>
+      </errors>
+    </module>
+
+    <module id="MOD-03">
+      <responsibility>Агрегирует очищенные данные: извлекает месяц из date ('YYYY-MM'), группирует по месяцу и вычисляет сумму выручки.</responsibility>
+      <covers>
+        <covers>FR-02</covers>
+      </covers>
+      <io>
+        <inputs>
+          <input name="cleaned_rows" type="table(date:str, category:str, product:str, qty:int, price:int, region:str)"/>
+        </inputs>
+        <outputs>
+          <output name="revenue_by_month" type="table(month:str, revenue:int)"/>
+        </outputs>
+      </io>
+      <errors>
+        <condition input="cleaned_rows" is="empty" result="empty table returned"/>
+      </errors>
+    </module>
+
+    <module id="MOD-04">
+      <responsibility>Агрегирует выручку по продуктам, сортирует по убыванию и возвращает не более трёх продуктов с наибольшей выручкой.</responsibility>
+      <covers>
+        <covers>FR-03</covers>
+      </covers>
+      <io>
+        <inputs>
+          <input name="cleaned_rows" type="table(date:str, category:str, product:str, qty:int, price:int, region:str)"/>
+        </inputs>
+        <outputs>
+          <output name="top3_products" type="list(product:str, revenue:int)" max_size="3"/>
+        </outputs>
+      </io>
+      <errors>
+        <condition input="cleaned_rows" has fewer than 3 products>
+          <behavior>Возвращает все доступные продукты в порядке убывания выручки.</behavior>
+        </condition>
+      </errors>
+    </module>
+
+    <module id="MOD-05">
+      <responsibility>Вычисляет средний чек по регионам: общая выручка региона / количество транзакций в регионе.</responsibility>
+      <covers>
+        <covers>FR-04</covers>
+      </covers>
+      <io>
+        <inputs>
+          <input name="cleaned_rows" type="table(date:str, category:str, product:str, qty:int, price:int, region:str)"/>
+        </inputs>
+        <outputs>
+          <output name="avg_receipt_by_region" type="table(region:str, avg_receipt:float)"/>
+        </outputs>
+      </io>
+      <errors>
+        <condition input="cleaned_rows" is="empty" result="empty table returned"/>
+      </errors>
+    </module>
+  </modules>
+
+  <acceptance>
+    <!-- Эталонные значения вычислены на sample из профиля (5 строк, без пропусков). -->
+    <criterion for="FR-01">
+      На эталонном наборе (sample из 5 строк: три продажи electronics, две home):
+      electronics: 317000, home: 30500.
+    </criterion>
+    <criterion for="FR-02">
+      На эталонном наборе (все даты – январь 2026): месяц "2026-01": 347500.
+    </criterion>
+    <criterion for="FR-03">
+      На эталонном наборе топ-3:
+      1. phone_x1 – 225000
+      2. laptop_a3 – 92000
+      3. vacuum_v8 – 18000
+    </criterion>
+    <criterion for="FR-04">
+      На эталонном наборе: msk – 73750.0, spb – 55000.0, ekb – 90000.0.
+    </criterion>
+    <criterion for="FR-05">
+      На эталонном наборе (sample без пропусков) количество исключённых записей = 0.
+      При передаче записей с пропущенным qty или price количество исключённых соответствует числу таких строк.
+    </criterion>
+  </acceptance>
+</analysis_spec>

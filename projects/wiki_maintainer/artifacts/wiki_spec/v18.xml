@@ -1,0 +1,15 @@
+<wiki_change derived_from="input@1">
+  <source_request>Обнови python/duckdb/index.md (action=update): во вводном абзаце замени устаревший идиом «duckdb.query(df)» на официальный «duckdb.sql("SELECT ... FROM df")» (replacement scan: имя переменной DataFrame подставляется как таблица). Больше ничего на странице не меняй — все остальные разделы, каталог сценарных страниц и related перенеси дословно.
+Материал: проверено 2026-07-10 по официальной документации duckdb 1.5.4 (duckdb.org/docs/current: clients/python/overview, guides/python/sql_on_pandas): SQL по pandas DataFrame выполняется через duckdb.sql — например my_df = pd.DataFrame(...); duckdb.sql("SELECT * FROM my_df").df(); обращение к несуществующей таблице my_df подменяется чтением DataFrame (replacement scan). Форма duckdb.query в официальных примерах Python API не используется — канонична duckdb.sql.</source_request>
+  <summary>В странице python/duckdb/index.md заменён устаревший идиом duckdb.query(df) на официальный duckdb.sql("SELECT ... FROM df") во вводном абзаце; остальные разделы и связанные страницы не изменяются.</summary>
+  <pages>
+    <page path="python/duckdb/index.md" action="update" unverified="false">
+      <purpose>Карточка технологии duckdb: обновление вводного абзаца для соответствия актуальной версии API (1.5.4)</purpose>
+      <index_row>не требуется — строка в реестре python/index.md уже существует</index_row>
+      <related>python/index.md, python/pandas/index.md</related>
+    </page>
+  </pages>
+  <index_updates>
+    <!-- изменений в индексах не требуется: строка duckdb в python/index.md уже присутствует -->
+  </index_updates>
+</wiki_change>

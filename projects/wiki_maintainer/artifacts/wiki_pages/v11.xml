@@ -1,0 +1,166 @@
+```file:python/pandas/aggregation.md
+# wiki: pandas — группировки и агрегаты (v1)
+
+## Именованные агрегаты (рекомендовано)
+- **GOOD:** `df.groupby("kind", as_index=False).agg(min_h=("height", "min"), avg_w=("weight", "mean"))`
+  имена колонок результата предсказуемы, ключи группировки — колонка, а не индекс.
+- **BAD:** `df.groupby("kind").agg({"height": "min", "weight": "mean"})` — имена колонок зависят от порядка в словаре.
+
+## as_index
+- Устанавливай `as_index=False`, когда нужен плоский DataFrame без индекса.
+- **Когда уместно оставить True:** если групповой ключ заведомо нужен как индекс (например, для дальнейшего join по индексу).
+
+## observed для categorical-ключей
+- Ключи типа category по умолчанию (observed=False) дают декартово произведение всех категорий, включая не встретившиеся. Для производительности и отсутствия пустых групп используй `observed=True`.
+- **BAD:** забыть про observed и получить тысячи пустых групп на категории с высокой кардинальностью.
+
+## transform (вместо apply)
+- **GOOD:** `grouped.transform("mean")` — векторизованная поэлементная операция (центрирование, стандартизация).
+- **BAD:** `grouped.apply(lambda g: ...)` с UDF — медленно и нестабильно. Официально не рекомендовано.
+- **Когда apply всё же допустим:** только если встроенных GroupBy-методов категорически недостаточно, и UDF не мутирует входной Series.
+
+## filter и top-N
+- **GOOD:** `grouped.filter(lambda g: g["val"].sum() > 10)` или `grouped.nth(0)`.
+- **BAD:** ручная фильтрация через apply с перебором строк.
+
+related: [карточка pandas](index.md)
+```
+
+```file:python/pandas/index.md
+# wiki: pandas (v2)
+
+Стабильная версия: **3.0.3** (PyPI, 11.05.2026). Версия 3.0.4 отозвана (segfaults в datetime).
+Документация: https://pandas.pydata.org/docs/
+Требования: Python ≥3.11, numpy ≥1.26, pyarrow ≥13.
+
+## Когда использовать
+- анализ табличных данных, помещающихся в оперативную память одного узла
+- очистка, фильтрация, агрегация CSV/Parquet/SQL-выгрузок в интерактивном режиме
+- работа с временными рядами (resample, rolling) на датафреймах до ~2 млн строк
+- подготовка данных для визуализации или передачи в микросервисную стадию цеха
+
+## Когда НЕ использовать
+- объём данных не влезает в память узла и нет возможности применить chunksize → используй DuckDB
+- задача лучше выражается SQL (сложные JOIN, оконные агрегаты, подзапросы) → DuckDB
+- требуется строгий контракт схемы (валидация при чтении) → pyarrow / polars
+- потоковая/событийная обработка, требующая инкрементального обновления → не pandas
+- вычисления на десятках ядер (pandas однопоточный для большинства операций) → polars / Dask
+
+## Ключевые правила pandas 3.x
+- **Copy-on-Write всегда активен.** Chained assignment вызывает ChainedAssignmentError;
+  всегда используй .loc[]; забытые .copy() для защиты больше не нужны.
+  inplace=True на извлечённой колонке не меняет DataFrame — переприсваивай явно.
+- **Строковый dtype по умолчанию `str`** (не `object`); проверки `dtype == object` для текста сломаны.
+- **to_datetime выдаёт `datetime64[us]`** (не [ns]); перед astype("int64") обязателен .dt.as_unit("ns").
+- **Частотные алиасы:** M → ME, Q → QE, Y → YE (старые удалены); час – "h", мин – "min", сек – "s".
+- **Параметр `copy=`** в astype/reindex/merge устарел и ничего не делает — убирай.
+- **Таймзоны:** zoneinfo (stdlib), pytz больше не обязательная зависимость.
+
+## Пропуски
+- **GOOD:** `clean = df.dropna(subset=["qty", "price"]); dropped_rows = len(df) - len(clean)` — явная политика и подсчёт отброшенного.
+- **BAD:** `df.fillna(0)` в количественных колонках без анализа — искажает суммы и статистики.
+
+## Каталог сценарных страниц
+| Страница | Сценарий |
+|---|---|
+| [io-csv.md](io-csv.md) | Чтение и запись CSV: управление типами, датами, пропусками, большие файлы |
+| [aggregation.md](aggregation.md) | Группировки и агрегаты: именованные агрегаты, transform, filter; избегать apply с UDF |
+| [timeseries.md](timeseries.md) | Временные ряды: to_datetime, resample, rolling, таймзоны |
+
+## Тесты модулей
+```python
+# GOOD: фикстура строится в тесте, краевой случай — отдельным тестом
+def test_revenue_by_category() -> None:
+    df = pd.DataFrame({
+        "category": ["a", "a", "b"],
+        "qty": [1, 2, 3],
+        "price": [10.0, 10.0, 5.0],
+    })
+    result = revenue_by_category(df)
+    assert result.loc[result["category"] == "a", "revenue"].item() == 30.0
+
+def test_revenue_empty_input() -> None:
+    df = pd.DataFrame(columns=["category", "qty", "price"])
+    assert revenue_by_category(df).empty
+
+# BAD: тест читает CSV с диска — в песочнице файла нет, тест недетерминирован
+```
+
+related: [каталог технологий Python](../index.md), [io-csv](io-csv.md),
+[aggregation](aggregation.md), [timeseries](timeseries.md)
+```
+
+```file:python/pandas/io-csv.md
+# wiki: pandas — чтение и запись CSV (v1)
+
+Сценарий для узла «исполнитель»: read_csv / to_csv. Все примеры привязаны к pandas 3.0.3.
+
+## dtype — явный контроль типов
+- **GOOD:** `pd.read_csv(path, dtype={"qty": "Int64"})` — поведение не зависит от данных.
+- **BAD:** `pd.read_csv(path)` без dtype — тип колонки определяется содержимым и может меняться.
+- **Когда избыточен:** если все колонки заведомо имеют стабильные типы (например, только строки) и автоматическое определение устраивает — можно опустить, но это риск.
+
+## parse_dates + date_format
+- **GOOD:** `pd.read_csv(path, parse_dates=["date"], date_format="%Y-%m-%d")`
+  infer_datetime_format удалён; явный формат для ISO8601 даёт быстрый путь (~20x).
+- **BAD:** полагаться на автоматическое угадывание даты без date_format.
+- **Когда избыточен:** если колонка с датами не нужна как datetime — не парси.
+
+## usecols — парсить только нужное
+- **GOOD:** `pd.read_csv(path, usecols=["id", "amount"])` — меньше памяти, быстрее разбор.
+- **Избыточен, когда нужны все колонки:** не добавляй usecols ради явности — CSV-парсер читает всё, overhead минимален.
+
+## na_values — полный контроль пропусков
+- **GOOD:** `pd.read_csv(path, na_values=["\\N"], keep_default_na=False)` — строго один маркер; дефолтные ("NA", "NULL", "None", "" и пр.) отключены.
+- **BAD:** не учитывать, что "NA" по умолчанию считается пропуском, и получить потерю валидных текстовых меток.
+- **Когда избыточен:** если дефолтный список устраивает и данных с коллизиями нет.
+
+## chunksize — большие файлы
+- **GOOD:** `with pd.read_csv(path, chunksize=100_000) as reader: for chunk in reader: process(chunk)`
+- **BAD:** читать файл целиком, когда он не помещается в память.
+- **Избыточен, если файл свободно помещается в память:** лишнее усложнение.
+
+## to_csv — запись без индекса
+- **GOOD:** `df.to_csv(path, index=False)` — индекс в CSV почти никогда не нужен.
+- **BAD:** to_csv() по умолчанию пишет индекс; при повторном чтении получается лишний столбец Unnamed: 0.
+
+related: [карточка pandas](index.md)
+```
+
+```file:python/pandas/timeseries.md
+# wiki: pandas — временные ряды (v1)
+
+## to_datetime — безопасный парсинг
+- **GOOD:** `pd.to_datetime(s, format="%d-%m-%Y", errors="coerce")` — невалидные значения превратятся в NaT.
+- **BAD:** полагаться на дефолтный `errors="raise"` без обработки неизвестных форматов.
+- **Epoch-преобразование:** `pd.to_datetime(vals, unit="s")`.
+
+## resample с новыми алиасами
+- Панды 3.0 удалили старые алиасы (M, Q, Y). Используй:
+  - `"ME"` — календарный месяц (month end)
+  - `"QE"` — квартал
+  - `"YE"` — год
+- **GOOD:** `ts.resample("ME").sum()`, `ts.resample("5min").mean()`
+- **BAD:** `ts.resample("M").sum()` → AttributeError.
+- По умолчанию `label="left"`, но для ME/QE/YE — `"right"`.
+
+## rolling с временным окном
+- **GOOD:** `ts.rolling(window="5min", min_periods=1).mean()` — окно по времени, не по числу строк.
+- `center=True` центрирует окно на точку; уместно при сглаживании.
+
+## Таймзоны через zoneinfo
+- **GOOD:**
+  ```python
+  dti = dti.tz_localize("Europe/Moscow")   # naive → aware
+  dti.tz_convert("UTC")                    # aware → aware
+  ```
+  используется только stdlib zoneinfo; pytz больше не требуется.
+- **BAD:** `dti.tz_localize(pytz.timezone("Europe/Moscow"))` — может работать, но избыточно и не рекомендовано.
+
+## Опасное преобразование datetime → int
+- Из-за микросекундного разрешения `datetime64[us]` в 3.0 прямой вызов `astype("int64")` даёт микросекундные unixtimestamp вместо наносекундных, как раньше.
+- **GOOD:** `ser.dt.as_unit("ns").astype("int64")` — результат не зависит от разрешения.
+- **BAD:** `ser.astype("int64")` без предварительного приведения к ns.
+
+related: [карточка pandas](index.md)
+```

@@ -1,0 +1,76 @@
+<wiki_change derived_from="input@v1">
+  <source_request>Сформируй документацию библиотеки pandas под зафиксированную стабильную версию — пилот стандарта «документация библиотек» (версия фиксируется, фактура из официальных источников, приземление на пользовательские сценарии с шаблонами и good/bad примерами).
+
+1) Обнови python/pandas/index.md (action=update): преврати в карточку библиотеки — зафиксированная стабильная версия pandas 3.0.3 (PyPI, 11.05.2026; версия 3.0.4 отозвана из-за сегфолтов в datetime; требует Python &gt;=3.11); секции «Когда использовать / Когда НЕ использовать»; короткая секция «Ключевые правила pandas 3.x» (Copy-on-Write, строковый dtype, новые частотные алиасы — из материала); каталог сценарных страниц (таблица ссылок на io-csv.md, aggregation.md, timeseries.md). Существующие примеры распредели по сценарным страницам, на index не дублируй; раздел «Тесты модулей» оставь на index дословно.
+
+2) Добавь python/pandas/io-csv.md (action=add): сценарий «чтение и запись CSV» — шаблоны использования и good/bad примеры из материала (dtype, parse_dates+date_format, usecols, na_values, chunksize, to_csv(index=False)); когда параметр уместен, а когда избыточен.
+
+3) Добавь python/pandas/aggregation.md (action=add): сценарий «группировки и агрегаты» — именованные агрегаты, as_index, observed, transform/filter; negative: groupby.apply с UDF.
+
+4) Добавь python/pandas/timeseries.md (action=add): сценарий «временные ряды» — to_datetime (format, errors), resample с новыми алиасами, rolling, таймзоны; negative: старые алиасы M/Q/Y (удалены в 3.0), astype('int64') на datetime без as_unit.
+
+5) Обнови python/index.md (action=update): в «Правило пополнения» добавь стандарт документации библиотек: фиксировать стабильную версию (проверка на PyPI, отозванные yanked-версии не брать), фактуру брать из официальной документации, страницы приземлять на пользовательские сценарии (шаблоны + good/bad: когда метод уместен, а когда избыточен или ошибочен). Остальное на странице не менять.
+
+Каждая страница компактная (лимит цеха), good/bad — 2–3 примера на раздел.
+Материал: Проверено 2026-07-10, только официальные источники.
+
+ВЕРСИЯ: pandas 3.0.3 — текущая стабильная на PyPI (релиз 11.05.2026). Версия 3.0.4 (28.06.2026) отозвана (yanked): «Reported segfaults with datetime-related functionality». Требования: Python &gt;=3.11, numpy &gt;=1.26, pyarrow &gt;=13. Источник: pypi.org/project/pandas.
+
+PANDAS 3.0 — КЛЮЧЕВЫЕ ИЗМЕНЕНИЯ (whatsnew v3.0.0, user guide copy_on_write):
+- Copy-on-Write всегда включён. Chained assignment вызывает ошибку ChainedAssignmentError: НЕВЕРНО df["a"][df["b"] &gt; 5] = 1; ВЕРНО df.loc[df["b"] &gt; 5, "a"] = 1. inplace=True на извлечённой колонке (df["a"].replace(1, 5, inplace=True)) НЕ меняет DataFrame — переприсваивай: df["a"] = df["a"].replace(1, 5). SettingWithCopyWarning удалён; защитные .copy() больше не нужны. Правило: одна инструкция изменяет ровно один объект.
+- Строковые колонки по умолчанию dtype str (не object). Проверка: ser.dtype == "str". Запись не-строки в строковую колонку — ошибка. Проверки вида dtype == object для текста ломаются.
+- to_datetime выводит разрешение: datetime64[us] по умолчанию (раньше всегда [ns]). Перед astype("int64") на datetime обязателен .dt.as_unit("ns"), иначе результат зависит от разрешения.
+- Частотные алиасы: M -&gt; ME, Q -&gt; QE, Y -&gt; YE (старые УДАЛЕНЫ, вызовут ошибку); час — "h", минута — "min", секунда — "s" (H/T/S устарели).
+- Параметр copy= в astype/reindex/merge и др. устарел и ничего не делает — убирать.
+- Таймзоны: zoneinfo (stdlib) вместо pytz; pytz больше не обязательная зависимость.
+
+READ_CSV / TO_CSV (user guide io):
+- Явные типы: pd.read_csv(path, dtype={"qty": "Int64"}) — без dtype тип колонки зависит от содержимого файла.
+- Даты: pd.read_csv(path, parse_dates=["date"], date_format="%Y-%m-%d"); параметр infer_datetime_format УДАЛЁН — только явный date_format. ISO8601-формат имеет быстрый путь (~20x).
+- usecols=["a", "b"] — парсятся только нужные колонки (быстрее, меньше памяти); избыточен, когда нужны все колонки.
+- Пропуски: na_values=["NA"] добавляет к дефолтным маркерам; keep_default_na=False + na_values=[""] — полный контроль. Дефолтный список включает "NA", "NULL", "null", "None", "" и др.
+- Большие файлы: with pd.read_csv(path, chunksize=100_000) as reader: for chunk in reader: ... — избыточно для файлов, помещающихся в память.
+- Запись: df.to_csv(path, index=False) — индекс в CSV почти никогда не нужен.
+
+GROUPBY (user guide groupby):
+- Именованные агрегаты — официально рекомендованы: df.groupby("kind").agg(min_h=("height", "min"), avg_w=("weight", "mean")) — имена колонок результата предсказуемы.
+- as_index=False — ключи группировки становятся колонками, а не индексом.
+- observed= для categorical-ключей: False (дефолт) даёт декартово произведение всех категорий включая пустые, True — только наблюдаемые.
+- .apply с UDF официально НЕ рекомендован: «An operation that is split into multiple steps using built-in GroupBy operations will be more efficient than using the apply method with a user-defined Python function». Замены: агрегация — .agg("sum"/"mean"/...), трансформация — grouped.transform("mean") (например (ts - g.transform("mean")) / g.transform("std")), фильтрация — .filter / .head(n) / .nth(i).
+- UDF в агрегации не должен мутировать переданный Series.
+
+ВРЕМЕННЫЕ РЯДЫ (user guide timeseries):
+- Парсинг: pd.to_datetime(s, format="%d-%m-%Y", errors="coerce") — невалидные значения станут NaT; errors="raise" — дефолт. Epoch: pd.to_datetime(vals, unit="s").
+- resample: ts.resample("5min").mean(); ts.resample("ME").sum() — месячные суммы. Дефолт label/closed = "left", НО для ME/QE/YE/W — "right".
+- rolling: ts.rolling(window="5min", min_periods=1).mean() — окно по времени; center=True центрирует окно.
+- Таймзоны: dti.tz_localize("UTC").tz_convert("Europe/Moscow"); naive-даты сначала локализуются.
+- Сдвиги: ts.shift(1) — данные; ts.shift(5, freq="D") — только индекс.
+
+ИСТОЧНИКИ: https://pypi.org/project/pandas/ ; https://pandas.pydata.org/docs/whatsnew/v3.0.0.html ; https://pandas.pydata.org/docs/user_guide/copy_on_write.html ; https://pandas.pydata.org/docs/user_guide/io.html ; https://pandas.pydata.org/docs/user_guide/groupby.html ; https://pandas.pydata.org/docs/user_guide/timeseries.html</source_request>
+  <summary>Пилот стандарта документации библиотек: обновление карточки pandas (фиксация версии 3.0.3) и добавление трёх сценарных страниц (CSV, агрегация, временные ряды) с шаблонами и good/bad примерами из официальных источников.</summary>
+  <pages>
+    <page path="python/pandas/index.md" action="update" unverified="false">
+      <purpose>Карточка библиотеки pandas: зафиксированная версия 3.0.3, секции «Когда использовать / Когда НЕ использовать», ключевые правила 3.x, каталог сценарных страниц (io-csv, aggregation, timeseries), сохранение раздела «Тесты модулей» без изменений</purpose>
+      <related>python/index.md, python/pandas/io-csv.md, python/pandas/aggregation.md, python/pandas/timeseries.md</related>
+    </page>
+    <page path="python/pandas/io-csv.md" action="add" unverified="false">
+      <purpose>Сценарий чтения и записи CSV: шаблоны использования read_csv/to_csv, good/bad примеры (dtype, parse_dates+date_format, usecols, na_values, chunksize, to_csv index=False), когда параметр уместен/избыточен</purpose>
+      <index_row>| [io-csv](io-csv.md) | Чтение и запись CSV (read_csv/to_csv): управление типами, датами, пропусками, большими файлами |</index_row>
+      <related>python/pandas/index.md</related>
+    </page>
+    <page path="python/pandas/aggregation.md" action="add" unverified="false">
+      <purpose>Сценарий группировки и агрегатов: именованные агрегаты, as_index, observed, transform/filter, антипример groupby.apply с UDF</purpose>
+      <index_row>| [aggregation](aggregation.md) | Группировки и агрегаты: именованные агрегаты, transform, filter; избегать apply с UDF |</index_row>
+      <related>python/pandas/index.md</related>
+    </page>
+    <page path="python/pandas/timeseries.md" action="add" unverified="false">
+      <purpose>Сценарий временных рядов: to_datetime (format, errors), resample с новыми алиасами (ME, QE, YE), rolling, таймзоны (zoneinfo); негативные практики: старые алиасы M/Q/Y, astype('int64') без as_unit</purpose>
+      <index_row>| [timeseries](timeseries.md) | Временные ряды: to_datetime, resample, rolling, таймзоны |</index_row>
+      <related>python/pandas/index.md</related>
+    </page>
+  </pages>
+  <index_updates>
+    <index path="python/pandas/index.md">Добавить строки для io-csv.md, aggregation.md, timeseries.md в таблицу каталога сценарных страниц</index>
+    <index path="python/index.md">Дополнить «Правило пополнения» стандартом документации библиотек: фиксировать стабильную версию (проверка на PyPI, yanked-версии исключать), фактура — официальная документация, страницы приземлять на пользовательские сценарии с шаблонами и good/bad примерами</index>
+  </index_updates>
+</wiki_change>

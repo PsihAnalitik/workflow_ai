@@ -1,0 +1,61 @@
+<wiki_change derived_from="input@v2">
+  <source_request>Документация библиотеки fastapi, часть 2 из 2 (повтор). ПЯТЬ файлов в file map, из них два — дословные копии без изменений (нужны, чтобы все цели ссылок были в file map).
+
+1) Добавь python/fastapi/dependencies.md (action=add): сценарий «зависимости» — Depends с Annotated (официальная форма), переиспользуемый type alias, подмена в тестах через app.dependency_overrides с обязательным сбросом; negative: Depends(func()) — вызов вместо передачи функции; незачищенные overrides утекают между тестами. related: index.md и testing.md.
+
+2) Обнови python/fastapi/testing.md (action=update): привяжи к версии fastapi 0.139.0; добавь короткие факты: TestClient требует установленный httpx; тестовые функции — обычные def (не async), вызовы клиента без await; данные через json=/headers=/cookies=; подмена зависимостей — ссылка на [dependencies.md](dependencies.md). Существующие разделы и GOOD/BAD примеры сохрани дословно; в конец — секция related (index.md, dependencies.md).
+
+3) Обнови python/fastapi/index.md (action=update): добавь ОДНУ строку каталога про dependencies.md (сценарий «зависимости: Depends+Annotated, dependency_overrides»). Все существующие строки каталога (testing.md, validation.md, errors.md), секцию related и остальное содержимое — дословно без изменений.
+
+4) Обнови python/fastapi/validation.md (action=update): БЕЗ ИЗМЕНЕНИЙ — перенеси текущий текст страницы дословно, один в один.
+
+5) Обнови python/fastapi/errors.md (action=update): БЕЗ ИЗМЕНЕНИЙ — перенеси текущий текст страницы дословно, один в один.
+
+В КАЖДОЙ ревизии возвращай ПОЛНЫЙ file map — все пять файлов, включая неизменённые копии validation.md и errors.md.
+Материал: Проверено 2026-07-10, только официальные источники (fastapi.tiangolo.com: tutorial/dependencies, tutorial/testing, advanced/testing-dependencies; pypi.org/project/fastapi).
+
+ВЕРСИЯ: fastapi 0.139.0 (PyPI, 01.07.2026; Python >=3.10, Pydantic 2).
+
+ЗАВИСИМОСТИ (tutorial/dependencies):
+- Официальная форма — Annotated: def read_items(commons: Annotated[dict, Depends(common_parameters)]). Зависимость — обычная функция (def или async def) с теми же видами параметров, что у обработчиков (query/path/body).
+- Переиспользование: CommonsDep = Annotated[dict, Depends(common_parameters)] — один источник истины, сохраняется автодополнение и проверка типов.
+- В Depends() передаётся сама функция, НЕ её вызов: Depends(common_parameters), не Depends(common_parameters()).
+- Валидации зависимостей автоматически попадают в OpenAPI-схему.
+
+ТЕСТЫ (tutorial/testing, advanced/testing-dependencies):
+- TestClient требует установленный httpx; импорт from fastapi.testclient import TestClient; клиент основан на HTTPX.
+- Тестовые функции — обычные def (не async), вызовы клиента — без await; pytest-конвенция имён test_*.
+- Передача данных: client.post(url, json=..., headers=..., cookies=...).
+- Подмена зависимостей: app.dependency_overrides[common_parameters] = override_dependency — ключ это исходная функция, значение это подменная функция; работает для зависимостей в обработчиках, декораторах и роутерах.
+- После теста обязательный сброс: app.dependency_overrides.clear() — иначе подмена утечёт в соседние тесты.
+- Типовое применение: мок внешнего сервиса, фиксированные тестовые данные.
+
+ИСТОЧНИКИ: https://fastapi.tiangolo.com/tutorial/dependencies/ ; https://fastapi.tiangolo.com/tutorial/testing/ ; https://fastapi.tiangolo.com/advanced/testing-dependencies/ ; https://pypi.org/project/fastapi/</source_request>
+  <summary>Добавление страницы зависимостей FastAPI (dependencies.md), обновление testing.md и index.md с версией 0.139.0; validation.md и errors.md обновляются без изменений содержимого для целостности file map и помечены unverified="true" из-за отсутствия материала в запросе; все цели ссылок резолвятся в обновлённом индексе fastapi/index.md, который дословно сохраняет строки testing, validation, errors.</summary>
+  <pages>
+    <page path="python/fastapi/dependencies.md" action="add" unverified="false">
+      <purpose>сценарий «зависимости» FastAPI: Depends с Annotated, переиспользуемый type alias, подмена в тестах через app.dependency_overrides с обязательным сбросом после теста</purpose>
+      <index_row>| [dependencies](dependencies.md) | зависимости: Depends+Annotated, dependency_overrides |</index_row>
+      <related>python/fastapi/index.md, python/fastapi/testing.md</related>
+    </page>
+    <page path="python/fastapi/testing.md" action="update" unverified="false">
+      <purpose>привязка к версии 0.139.0; добавлены факты о TestClient/httpx, тестовых def-функциях, передаче данных и подмене зависимостей со ссылкой на dependencies.md; существующие разделы и GOOD/BAD примеры сохранены дословно</purpose>
+      <related>python/fastapi/index.md, python/fastapi/dependencies.md</related>
+    </page>
+    <page path="python/fastapi/index.md" action="update" unverified="false">
+      <purpose>добавлена одна строка каталога для dependencies.md, остальное содержимое (строки testing, validation, errors, related) без изменений</purpose>
+      <related>python/index.md, python/fastapi/dependencies.md, python/fastapi/testing.md, python/fastapi/validation.md, python/fastapi/errors.md</related>
+    </page>
+    <page path="python/fastapi/validation.md" action="update" unverified="true">
+      <purpose>без изменений содержимого – дословная копия текущей страницы (синхронизация версии); материал для верификации не предоставлен</purpose>
+      <related>python/fastapi/index.md</related>
+    </page>
+    <page path="python/fastapi/errors.md" action="update" unverified="true">
+      <purpose>без изменений содержимого – дословная копия текущей страницы (синхронизация версии); материал для верификации не предоставлен</purpose>
+      <related>python/fastapi/index.md</related>
+    </page>
+  </pages>
+  <index_updates>
+    <index path="python/fastapi/index.md">добавить строку dependencies.md в таблицу каталога; все существующие строки (testing.md, validation.md, errors.md) сохранить дословно — индекс продолжит содержать ссылки на все страницы FastAPI</index>
+  </index_updates>
+</wiki_change>

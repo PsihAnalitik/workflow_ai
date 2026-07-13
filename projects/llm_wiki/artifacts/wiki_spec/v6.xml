@@ -1,0 +1,33 @@
+<wiki_change derived_from="input@v1">
+  <summary>Новые страницы methodology: map-драйвер (M-23, v10), методология прожарки промптов (П1–П8), валидация таблиц (T1–T7, трёхсторонний join), пилот .workflow_ai</summary>
+  <pages>
+    <page path="methodology/map-driver.md" action="add" unverified="false">
+      <purpose>map-драйвер фабрики: пакетный прогон цеха по списку элементов, --resume, --workers N, map/summary.md, ограничения HITL</purpose>
+      <source_chunks>d1:04, d1:05, d1:08</source_chunks>
+      <index_row>| [map-driver](map-driver.md) | map-драйвер: пакетные прогоны, resume, параллельные воркеры |</index_row>
+      <related>methodology/index.md, methodology/rework-cycle.md, methodology/wiki-shop.md</related>
+    </page>
+    <page path="methodology/prompt-roasting.md" action="add" unverified="false">
+      <purpose>методология прожарки промптов П1–П8: перегрузка правилами, порядок ввода, неэкранированный ввод; результаты на 26 промптах (22 FAIL, 64 p3)</purpose>
+      <source_chunks>d1:05, d1:06, d1:08</source_chunks>
+      <index_row>| [prompt-roasting](prompt-roasting.md) | прожарка промптов: методология П1–П8 и системные болезни |</index_row>
+      <related>methodology/index.md, methodology/rework-cycle.md</related>
+    </page>
+    <page path="methodology/table-validation.md" action="add" unverified="false">
+      <purpose>валидация таблиц: измерения T1–T7, трёхсторонний join schema↔tools↔table_cards, db_query для сверки с БД, шаблоны эталонов</purpose>
+      <source_chunks>d1:06, d1:07, d1:09</source_chunks>
+      <index_row>| [table-validation](table-validation.md) | валидация таблиц: T1–T7, трёхсторонний join, db_query |</index_row>
+      <related>methodology/index.md, methodology/prompt-roasting.md</related>
+    </page>
+    <page path="methodology/pilot-workflow-ai.md" action="add" unverified="false">
+      <purpose>пилот .workflow_ai в smart-assistant: структура, цеха prompt_roaster/table_roaster, интеграция через PYTHONPATH, уроки запуска</purpose>
+      <source_chunks>d1:06, d1:07</source_chunks>
+      <index_row>| [pilot-workflow-ai](pilot-workflow-ai.md) | пилот .workflow_ai: фабрика внутри чужого проекта |</index_row>
+      <related>methodology/index.md, methodology/tech-selection.md</related>
+    </page>
+  </pages>
+  <index_updates>
+    <index path="methodology/index.md">добавить строки map-driver, prompt-roasting, table-validation, pilot-workflow-ai в таблицу страниц области</index>
+  </index_updates>
+  <backlog>пусто</backlog>
+</wiki_change>

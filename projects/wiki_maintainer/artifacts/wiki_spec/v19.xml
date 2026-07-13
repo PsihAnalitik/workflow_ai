@@ -1,0 +1,14 @@
+<wiki_change derived_from="input@v1">
+  <source_request>Обнови python/duckdb/index.md (action=update): в разделе «Когда использовать» в пункте про интеграцию с pandas замени устаревший идиом «duckdb.query("SELECT ... FROM df")» на официальный «duckdb.sql("SELECT ... FROM df")». Больше ничего на странице не меняй — остальное перенеси дословно.
+Материал: проверено 2026-07-10 по официальной документации duckdb 1.5.4 (duckdb.org/docs/current/guides/python/sql_on_pandas): канонический вызов — duckdb.sql; форма duckdb.query в официальных примерах Python API не используется.</source_request>
+  <summary>Обновление страницы duckdb: замена duckdb.query на duckdb.sql в примере интеграции с pandas, без других правок.</summary>
+  <pages>
+    <page path="python/duckdb/index.md" action="update" unverified="false">
+      <purpose>исправить идиом вызова SQL: заменить duckdb.query на duckdb.sql</purpose>
+      <related>python/index.md, python/pandas/index.md</related>
+    </page>
+  </pages>
+  <index_updates>
+    <index path="python/index.md">изменений индекса не требуется (строка duckdb уже присутствует)</index>
+  </index_updates>
+</wiki_change>

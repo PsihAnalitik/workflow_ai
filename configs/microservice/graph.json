@@ -1,0 +1,54 @@
+{
+  "project": "text_searcher",
+  "llm_profiles_path": "configs/microservice/models.json",
+  "package": {
+    "code_node": "executor",
+    "image": "workshop-microservice:latest",
+    "serve": "uvicorn api:app --host 0.0.0.0 --port 8000",
+    "ports": ["8000:8000"]
+  },
+  "nodes": [
+    {
+      "id": "domains",
+      "config_path": "configs/microservice/nodes/domains.json",
+      "gates": {"hitl": true}
+    },
+    {
+      "id": "contracts",
+      "config_path": "configs/microservice/nodes/contracts.json",
+      "gates": {"hitl": true}
+    },
+    {
+      "id": "openapi",
+      "config_path": "configs/microservice/nodes/openapi.json",
+      "gates": {"hitl": true}
+    },
+    {
+      "id": "tech_selection",
+      "config_path": "configs/microservice/nodes/tech_selection.json",
+      "gates": {"hitl": true}
+    },
+    {
+      "id": "c4",
+      "config_path": "configs/microservice/nodes/c4.json",
+      "gates": {"hitl": true}
+    },
+    {
+      "id": "executor",
+      "config_path": "configs/microservice/nodes/executor.json",
+      "kind": "codegen",
+      "image": "workshop-microservice:latest",
+      "gates": {"hitl": true}
+    }
+  ],
+  "edges": [
+    {"from": "domains", "to": "contracts"},
+    {"from": "contracts", "to": "openapi"},
+    {"from": "contracts", "to": "tech_selection"},
+    {"from": "openapi", "to": "tech_selection"},
+    {"from": "contracts", "to": "c4"},
+    {"from": "openapi", "to": "c4"},
+    {"from": "tech_selection", "to": "c4"},
+    {"from": "c4", "to": "executor"}
+  ]
+}

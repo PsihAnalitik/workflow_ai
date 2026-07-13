@@ -1,0 +1,6 @@
+{
+  "base_prompt_path": "configs/data_analyst/prompts/tech_selection.base.md",
+  "stage_map_path": "configs/data_analyst/prompts/empty.stage.md",
+  "wiki_refs": [{"path": "wiki/python/index.md", "version": "v1"}],
+  "llm_profile": "default"
+}

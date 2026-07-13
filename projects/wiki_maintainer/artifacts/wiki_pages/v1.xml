@@ -1,0 +1,76 @@
+```file:python/duckdb/index.md
+# wiki: DuckDB (v1)
+
+Встраиваемая колоночная СУБД для аналитики. Выполняет SQL напрямую по CSV/Parquet
+файлам без загрузки в память (read_csv_auto, read_parquet). Интегрируется с pandas:
+`duckdb.query(df)`. Сильные стороны: оконные функции, джойны на данных больше памяти.
+
+## Когда использовать
+- Нужно выполнить SQL-запрос по одному или нескольким CSV/Parquet файлам без
+  разворачивания сервера БД.
+- Данные не помещаются в память, но требуется аналитика (оконные функции, агрегаты,
+  джойны) — DuckDB обрабатывает данные потоково.
+- Интеграция с pandas: передача DataFrame в SQL-запрос
+  (`duckdb.query("SELECT ... FROM df")`).
+- Прототипирование аналитических пайплайнов перед переносом на серверную БД.
+
+## Когда НЕ использовать
+- Транзакционная БД сервиса (OLTP: вставки, обновления, удаления отдельных записей) —
+  DuckDB оптимизирован под аналитику, не под конкурентные записи.
+- Потоковая обработка в реальном времени (Kafka, стриминг) — DuckDB работает
+  с файлами, а не с бесконечными потоками.
+- Замена PostgreSQL/MySQL для веб-приложения — нет сетевого протокола, управления
+  пользователями, репликации.
+
+## Шаблоны подключения
+```python
+import duckdb
+
+# Прямой SQL по файлам
+conn = duckdb.connect()
+conn.execute("SELECT * FROM read_csv_auto('data.csv')").fetchall()
+
+# Интеграция с pandas
+import pandas as pd
+df = pd.DataFrame({"a": [1,2,3]})
+result = conn.execute("SELECT sum(a) FROM df").fetchone()
+```
+
+## Good/Bad примеры
+**Good:**
+- Анализ логов из нескольких Parquet-файлов с оконными функциями:
+  `SELECT user_id, event, ROW_NUMBER() OVER (PARTITION BY user_id ORDER BY ts)
+  FROM read_parquet('logs/*.parquet')`.
+- Объединение CSV-справочника с pandas DataFrame через SQL:
+  `SELECT * FROM df JOIN read_csv_auto('regions.csv') ON df.region_id = regions.id`.
+
+**Bad:**
+- Использовать DuckDB как основную БД для REST API: конкурентные вставки заказов
+  приведут к конфликтам и потере данных.
+- Пытаться обрабатывать бесконечный поток событий из Kafka через DuckDB —
+  нет механизма подписки.
+
+related: [pandas](../pandas/index.md), [каталог Python](../index.md)
+```
+
+```file:python/index.md
+# wiki: каталог технологий Python (v1)
+
+Реестр доступных цеху технологий экосистемы Python (FR-19). Стадия
+`tech_selection` выбирает стек ОТСЮДА: ссылка технологии = значение
+`<tech ref="...">` в `tech_stack.xml`; невыбранные технологии в контекст
+исполнителя не попадают.
+
+| Технология | ref | Класс задач | Статус |
+|---|---|---|---|
+| [pandas](pandas/index.md) | `python/pandas` | анализ табличных данных (CSV, агрегаты, временные ряды) | preferred |
+| [fastapi](fastapi/index.md) | `python/fastapi` | HTTP-микросервисы (REST API + офлайн-тесты) | preferred |
+| [duckdb](duckdb/index.md) | `python/duckdb` | встраиваемая аналитическая СУБД: SQL по CSV/Parquet, оконные функции, интеграция с pandas | allowed |
+
+Статусы: preferred — выбирается по умолчанию для своего класса задач;
+allowed — допустима с WHY-обоснованием; deprecated — не выбирать для нового кода.
+
+Правило пополнения: новая технология = поддиректория со страницами
+(index.md: когда использовать / когда НЕ + шаблоны и good/bad примеры)
++ строка в этой таблице + запись в CHANGELOG цеха (FR-17).
+```

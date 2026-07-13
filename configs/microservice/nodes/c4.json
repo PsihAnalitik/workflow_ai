@@ -1,0 +1,9 @@
+{
+  "base_prompt_path": "user_docs/prompts/artifact_generator.base.md",
+  "stage_map_path": "configs/microservice/prompts/stage.c4.md",
+  "wiki_refs": [
+    {"path": "wiki/methodology/grace.md", "version": "v1"},
+    {"path": "wiki/methodology/examples/developmentplan.md", "version": "v1"}
+  ],
+  "llm_profile": "default"
+}

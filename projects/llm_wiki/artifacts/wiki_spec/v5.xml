@@ -1,0 +1,36 @@
+<wiki_change derived_from="input@v1">
+  <summary>четыре страницы из сессии a06a07b9: новая область python/ (стандарт библиотечной документации), architecture web_search tool в цехах, механизм wiki-tree-visibility для ревьюеров</summary>
+  <pages>
+    <page path="python/index.md" action="add" unverified="false">
+      <purpose>область: документация Python-библиотек (pandas, fastapi, duckdb) — карточки с закреплённой версией, сценариями, positive/negative примерами</purpose>
+      <source_chunks>inline</source_chunks>
+      <index_row>| [python](python/index.md) | документация Python-библиотек: pandas, fastapi, duckdb |</index_row>
+      <related>methodology/library-doc-standard.md</related>
+    </page>
+    <page path="methodology/library-doc-standard.md" action="add" unverified="false">
+      <purpose>стандарт страниц «документация библиотеки»: фиксация стабильной версии (PyPI, yanked-проверка), официальные источники, пользовательские сценарии, шаблоны использования, positive/negative examples, раздел «Когда использовать / Когда НЕ»</purpose>
+      <source_chunks>inline</source_chunks>
+      <index_row>| [library-doc-standard](library-doc-standard.md) | стандарт документирования библиотек: версия, сценарии, positive/negative |</index_row>
+      <related>python/index.md, methodology/index.md</related>
+    </page>
+    <page path="agent-workshop/web-search.md" action="add" unverified="false">
+      <purpose>архитектура web_search-инструмента для LLM-агентов в цехах: ToolSpec, tool-цикл в llm_client, модуль M-21 (Tavily-клиент), принудительный финал после 5 раундов, реестр инструментов через NodeConfig.tools</purpose>
+      <source_chunks>inline</source_chunks>
+      <index_row>| [web-search](web-search.md) | web_search tool: Tavily, tool-цикл, принудительный финал |</index_row>
+      <related>agent-workshop/index.md, agent-workshop/wiki-tree-visibility.md</related>
+    </page>
+    <page path="agent-workshop/wiki-tree-visibility.md" action="add" unverified="false">
+      <purpose>механизм видимости реального дерева wiki для ревьюера: tree_listing(root) в wiki_loader, NodeConfig.wiki_tree_root, блок === wiki tree === в INPUTS цеха, отказ от обходного манёвра с копиями подстраниц</purpose>
+      <source_chunks>inline</source_chunks>
+      <index_row>| [wiki-tree-visibility](wiki-tree-visibility.md) | видимость дерева wiki для ревьюера цеха |</index_row>
+      <related>agent-workshop/index.md, agent-workshop/web-search.md</related>
+    </page>
+  </pages>
+  <index_updates>
+    <index path="index.md">добавить строку python в таблицу областей</index>
+    <index path="python/index.md">новая область — индекс создаётся, подстраницы пока не добавлены</index>
+    <index path="methodology/index.md">добавить строку library-doc-standard</index>
+    <index path="agent-workshop/index.md">добавить строки web-search и wiki-tree-visibility</index>
+  </index_updates>
+  <backlog>карточки библиотек (python/pandas/index.md, python/fastapi/index.md + validation.md, errors.md, dependencies.md, python/duckdb/index.md); обновление methodology/workshop-cli.md (MCP-интеграции FR-23, wiki_update без передачи текста); детали GRACE-цикла (DevelopmentPlan → MENTAL_TEST → код); процедура перезапуска MCP-сервера после правки конфига цеха; обходной манёвр с копиями подстраниц и его отмена</backlog>
+</wiki_change>

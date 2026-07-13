@@ -1,0 +1,13 @@
+<verdict derived_from="analysis_spec.xml@1, executor@1">
+  <coverage>
+    <fr id="FR-01" status="covered" module="mod_01_filter.filter_by_date" test="test_mod_01_filter.test_filter_by_date_happy_path"/>
+    <fr id="FR-02" status="covered" module="mod_03_revenue_by_category.revenue_by_category" test="test_mod_03_revenue_by_category.test_revenue_by_category_happy"/>
+    <fr id="FR-03" status="covered" module="mod_04_revenue_by_month.revenue_by_month" test="test_mod_04_revenue_by_month.test_revenue_by_month_happy"/>
+    <fr id="FR-04" status="covered" module="mod_05_top3.top3_products" test="test_mod_05_top3.test_top3_products_happy"/>
+    <fr id="FR-05" status="covered" module="mod_06_avg_receipt.avg_receipt_by_region" test="test_mod_06_avg_receipt.test_avg_receipt_by_region_happy"/>
+    <fr id="FR-06" status="covered" module="mod_02_exclude.exclude_missing" test="test_mod_02_exclude.test_exclude_missing_happy"/>
+    <fr id="FR-07" status="covered" module="mod_07_report.format_report" test="test_mod_07_report.test_format_report"/>
+  </coverage>
+  <decision>READY</decision>
+  <reasons></reasons>
+</verdict>

@@ -1,0 +1,108 @@
+```file:python/httpx/index.md
+# wiki: httpx (v1)
+
+> ⚠ unverified: написано из знаний модели без внешнего материала — проверь факты при приёмке.
+
+httpx — современный HTTP-клиент для Python (стабильная версия 0.28.1) с поддержкой синхронного и асинхронного API, HTTP/1.1 и HTTP/2, и глубокой интеграцией в экосистему (FastAPI/Starlette, pytest-respx). Единая основа для кодовых баз, где соседствуют sync и async.
+
+## Когда использовать
+
+- Проект требует асинхронных HTTP-запросов (asyncio, FastAPI, Starlette).
+- Нужен единый клиент для синхронного и асинхронного кода в одной кодовой базе.
+- Требуется HTTP/2.
+- Используется связанный инструментарий (pytest-respx для мокинга, TestClient из Starlette/FastAPI).
+- Передаются типизированные данные (Pydantic-модели, строгая проверка).
+
+## Когда НЕ использовать
+
+- Простые синхронные скрипты без планов на async: requests проще и имеет более зрелую экосистему (urllib3-пул, готовые сессии).
+- Высоконагруженный асинхронный парсинг с тонкими настройками пула соединений: aiohttp даёт больше контроля.
+- Экзотические протоколы (ftp://) — httpx только HTTP.
+
+## Шаблоны
+
+### Синхронный клиент с переиспользованием
+```python
+import httpx
+
+with httpx.Client(base_url="https://api.example.com") as client:
+    resp = client.get("/items", params=dict(page=1))
+    data = resp.raise_for_status().json()
+```
+
+### Асинхронный клиент
+```python
+import asyncio
+import httpx
+
+async def fetch_items():
+    async with httpx.AsyncClient() as client:
+        resp = await client.get("https://api.example.com/items")
+        return resp.json()
+
+data = asyncio.run(fetch_items())
+```
+
+### Тестовый клиент FastAPI/Starlette (основан на httpx)
+```python
+from fastapi.testclient import TestClient
+from myapp import app
+
+client = TestClient(app)
+response = client.get("/health")
+assert response.status_code == 200
+```
+
+## Good/Bad примеры
+
+**Good** — переиспользование одного асинхронного клиента для серии запросов:
+```python
+async with httpx.AsyncClient() as client:
+    user = await client.get("/users/1")
+    orders = await client.get("/orders", params=dict(user_id=1))
+```
+
+**Bad** — создание нового клиента на каждый запрос (нет пула, теряется keep-alive):
+```python
+# Так не делать
+user = httpx.get("/users/1")
+orders = httpx.get("/orders", params=dict(user_id=1))
+```
+
+**Bad** — синхронный вызов в асинхронном контексте (блокирует event loop):
+```python
+async def handler():
+    resp = httpx.get("https://api.example.com/data")  # используй AsyncClient
+```
+
+## Related
+
+- [python/index.md](../index.md)
+- [fastapi/index.md](../fastapi/index.md)
+```
+
+```file:python/index.md
+# wiki: каталог технологий Python (v2)
+
+Реестр доступных цеху технологий экосистемы Python (FR-19). Стадия
+`tech_selection` выбирает стек ОТСЮДА: ссылка технологии = значение
+`<tech ref="...">` в `tech_stack.xml`; невыбранные технологии в контекст
+исполнителя не попадают.
+
+| Технология | ref | Класс задач | Статус |
+|---|---|---|---|
+| [pandas](pandas/index.md) | `python/pandas` | анализ табличных данных (CSV, агрегаты, временные ряды) | preferred |
+| [fastapi](fastapi/index.md) | `python/fastapi` | HTTP-микросервисы (REST API + офлайн-тесты) | preferred |
+| [duckdb](duckdb/index.md) | `python/duckdb` | встраиваемая аналитическая СУБД: SQL по CSV/Parquet, оконные функции, интеграция с pandas | allowed |
+| [httpx](httpx/index.md) | `python/httpx` | современный HTTP-клиент (sync/async, HTTP/1.1, HTTP/2) | allowed |
+
+Статусы: preferred — выбирается по умолчанию для своего класса задач;
+allowed — допустима с WHY-обоснованием; deprecated — не выбирать для нового кода.
+
+Правило пополнения: новая технология = поддиректория со страницами
+(index.md: когда использовать / когда НЕ + шаблоны и good/bad примеры)
++ строка в этой таблице + запись в CHANGELOG цеха (FR-17).
+**Стандарт документации библиотек:** фиксировать стабильную версию (проверка на PyPI, отозванные yanked-версии не брать); фактуру брать из официальной документации; страницы приземлять на пользовательские сценарии — шаблоны + good/bad (когда метод уместен, а когда избыточен или ошибочен).
+
+related: [pandas](pandas/index.md), [fastapi](fastapi/index.md), [duckdb](duckdb/index.md), [методология цеха](../methodology/grace.md)
+```

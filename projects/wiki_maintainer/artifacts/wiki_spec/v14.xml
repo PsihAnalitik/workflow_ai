@@ -1,0 +1,33 @@
+<wiki_change derived_from="input@v1">
+  <source_request>Добавь метаданные «ссылка на документацию» на три карточки технологий. Ровно ТРИ файла, во всех — action=update; в каждом меняется только блок метаданных рядом со строкой «Стабильная версия», остальное содержимое дословно без изменений.
+
+1) python/pandas/index.md: после строки со стабильной версией добавь строку «Документация: https://pandas.pydata.org/docs/».
+
+2) python/fastapi/index.md: после строки со стабильной версией добавь строку «Документация: https://fastapi.tiangolo.com/».
+
+3) python/duckdb/index.md: после строки со стабильной версией добавь строку «Документация: https://duckdb.org/docs/».
+
+В каждой ревизии возвращай ПОЛНЫЙ file map (все три файла).
+Материал: Официальные корни документации (проверено 2026-07-10, это же источники прошлых прогонов):
+- pandas: https://pandas.pydata.org/docs/ — официальная документация pandas (PyData).
+- fastapi: https://fastapi.tiangolo.com/ — официальный сайт-документация FastAPI.
+- duckdb: https://duckdb.org/docs/ — официальная документация DuckDB.</source_request>
+  <summary>Обновление метаданных трёх технологических карточек: добавление ссылки на официальную документацию после строки со стабильной версией.</summary>
+  <pages>
+    <page path="python/pandas/index.md" action="update" unverified="false">
+      <purpose>Добавить строку "Документация: https://pandas.pydata.org/docs/" после строки, содержащей стабильную версию.</purpose>
+      <related>python/index.md, python/fastapi/index.md, python/duckdb/index.md</related>
+    </page>
+    <page path="python/fastapi/index.md" action="update" unverified="false">
+      <purpose>Добавить строку "Документация: https://fastapi.tiangolo.com/" после строки, содержащей стабильную версию.</purpose>
+      <related>python/index.md, python/pandas/index.md, python/duckdb/index.md</related>
+    </page>
+    <page path="python/duckdb/index.md" action="update" unverified="false">
+      <purpose>Добавить строку "Документация: https://duckdb.org/docs/" после строки, содержащей стабильную версию.</purpose>
+      <related>python/index.md, python/pandas/index.md, python/fastapi/index.md</related>
+    </page>
+  </pages>
+  <index_updates>
+    <!-- индексы не изменяются, строки реестра остаются без изменений -->
+  </index_updates>
+</wiki_change>

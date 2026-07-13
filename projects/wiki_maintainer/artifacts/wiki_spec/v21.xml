@@ -1,0 +1,14 @@
+<wiki_change derived_from="input@v1">
+  <source_request>Добавь в область python карточку технологии polars (DataFrame-библиотека на Rust). Материала нет. Сначала проверь по wiki, нет ли уже такой или пересекающейся страницы (pandas? duckdb?), и сошлись related на существующие страницы; актуальную стабильную версию проверь веб-поиском.</source_request>
+  <summary>Новая технология python/polars — DataFrame на Rust, lazy evaluation, класс задач пересекается с pandas, но иная модель вычислений; unverified (материала нет).</summary>
+  <pages>
+    <page path="python/polars/index.md" action="add" unverified="true">
+      <purpose>карточка технологии: когда использовать / когда НЕ; стабильная версия 1.42.1; шаблоны и good/bad примеры (lazy vs eager, выраженная модель, сравнение с pandas)</purpose>
+      <index_row>| [polars](polars/index.md) | `python/polars` | быстрые DataFrame на Rust (lazy evaluation, streaming, многопоточность) | allowed |</index_row>
+      <related>python/index.md, python/pandas/index.md, python/duckdb/index.md</related>
+    </page>
+  </pages>
+  <index_updates>
+    <index path="python/index.md">добавить строку polars в таблицу реестра между duckdb и httpx (алфавитный порядок)</index>
+  </index_updates>
+</wiki_change>

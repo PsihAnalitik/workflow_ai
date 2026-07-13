@@ -1,0 +1,327 @@
+```file:python/fastapi/dependencies.md
+# wiki: fastapi — зависимости (v1)
+
+Стабильная версия: 0.139.0 (PyPI, 01.07.2026; Python >=3.10, Pydantic 2).
+
+Сценарий: внедрение переиспользуемой логики (параметры, проверки, подключения)
+в обработчики через `Depends` с минимальным дублированием.
+
+## Когда использовать
+
+- общая логика (параметры запроса, заголовки, сессии БД) используется в нескольких обработчиках;
+- нужно автоматически включить параметры зависимости в OpenAPI-схему;
+- требуется подменить зависимость в тестах (через `app.dependency_overrides`).
+
+## Когда НЕ использовать
+
+- логика нужна только в одном обработчике и не планируется к переиспользованию — добавь параметр прямо в функцию;
+- действие должно выполняться на уровне middleware для всех запросов (CORS, логгирование) — используй `app.add_middleware`;
+- зависимость выполняет только side-effect и не возвращает значение — рассмотри `BackgroundTasks` или middleware.
+
+## Good
+
+```python
+from fastapi import Depends, FastAPI
+from typing import Annotated
+
+app = FastAPI()
+
+def common_parameters(q: str | None = None, skip: int = 0, limit: int = 100):
+    return {"q": q, "skip": skip, "limit": limit}
+
+CommonsDep = Annotated[dict, Depends(common_parameters)]
+# Type alias — единая точка правды, сохраняет автодополнение и проверку типов
+
+@app.get("/items/")
+def read_items(commons: CommonsDep):
+    return commons
+
+@app.get("/users/")
+def read_users(commons: CommonsDep):
+    return commons
+```
+
+```python
+# Подмена в тестах — ключом выступает оригинальная функция
+def override_dependency():
+    return {"q": "test", "skip": 0, "limit": 10}
+
+app.dependency_overrides[common_parameters] = override_dependency
+
+# После теста обязательно сбрасывать, иначе подмена утечёт в соседние тесты
+app.dependency_overrides.clear()
+```
+
+## Bad
+
+```python
+# Depends(func()) — вызов функции вместо передачи самой функции
+def read_items(commons: Annotated[dict, Depends(common_parameters())]):
+    ...
+```
+
+```python
+# Подмена не сброшена после теста — другие тесты получают чужую зависимость
+def test_one():
+    app.dependency_overrides[common_parameters] = fake1
+    # нет clear()
+
+def test_two():
+    # здесь всё ещё активна fake1 из test_one
+    ...
+```
+
+```python
+# Ручное разрешение зависимости внутри обработчика
+@app.get("/items/")
+def read_items(q: str | None = None, skip: int = 0, limit: int = 100):
+    params = common_parameters(q, skip, limit)  # дублирование, потеря OpenAPI-схемы
+```
+
+related: [fastapi](index.md), [тестирование](testing.md)
+```
+
+```file:python/fastapi/errors.md
+# wiki: fastapi — обработка ошибок (v1)
+
+Сценарий: централизованная обработка ошибок, кастомные исключения, формат ответа.
+
+Когда использовать:
+- нужно вернуть HTTP-ошибку с телом (detail) и заголовками;
+- бизнес-логика выбрасывает собственные исключения — требуется единый формат ответа;
+- требуется изменить поведение валидационных ошибок (например, статус 400 вместо 422, тело `{code, message}`).
+
+Когда НЕ использовать:
+- ошибка обрабатывается локально и не требует HTTP-ответа (просто залогировать);
+- нужно вернуть не-HTTP ошибку (например, в фоновом воркере);
+- кастомный обработчик не добавляет ценности поверх стандартного (не дублируй http_exception_handler без причины).
+
+## Good
+
+```python
+from fastapi import HTTPException
+
+@app.get("/items/{item_id}")
+async def read_item(item_id: int):
+    if item_id not in db:
+        raise HTTPException(status_code=404, detail="Item not found")  # raise, не return
+    return db[item_id]
+```
+
+```python
+from fastapi import Request
+from fastapi.responses import JSONResponse
+
+class BusinessError(Exception):
+    def __init__(self, message: str, code: str):
+        self.message = message
+        self.code = code
+
+@app.exception_handler(BusinessError)
+async def business_exception_handler(request: Request, exc: BusinessError):
+    return JSONResponse(
+        status_code=409,
+        content={"code": exc.code, "message": exc.message},
+    )
+```
+
+```python
+from fastapi.exceptions import RequestValidationError
+from fastapi.encoders import jsonable_encoder
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    return JSONResponse(
+        status_code=400,                                          # меняем статус
+        content={"code": "VALIDATION_ERROR", "message": exc.errors()},
+    )
+```
+
+## Bad
+
+```python
+if item_id not in db:
+    return HTTPException(status_code=404, detail="Not found")     # return вместо raise — не работает
+```
+
+```python
+try:
+    process(item)
+except ValueError:
+    raise HTTPException(status_code=500, detail="Internal error") # маскирует ошибку входа под 500
+```
+
+```python
+@app.exception_handler(RequestValidationError)
+async def handler(request, exc):
+    return JSONResponse(status_code=422, content=exc.errors())    # сырой список ошибок Pydantic наружу
+```
+
+related: [fastapi](index.md), [модели запроса и ответа](validation.md)
+```
+
+```file:python/fastapi/index.md
+# wiki: fastapi (v1)
+
+Стабильная версия: 0.139.0 (PyPI, 01.07.2026; Python >=3.10, Pydantic 2, Starlette).
+Документация: https://fastapi.tiangolo.com/
+
+Каркас HTTP-микросервисов. `ref: python/fastapi`.
+
+Когда использовать: сервис с REST API по openapi-проекции контрактов;
+целевая среда — Docker Compose (антицели постановки §5).
+Когда НЕ использовать: разовый анализ данных без сетевого интерфейса
+(это класс задач [pandas](../pandas/index.md)); фоновые воркеры без HTTP.
+
+- [testing.md](testing.md) — офлайн-тестирование FastAPI-приложений
+  (TestClient, без сети — обязательное требование песочницы).
+- [dependencies.md](dependencies.md) — зависимости FastAPI: `Depends` с Annotated, переиспользование, подмена в тестах
+- [validation.md](validation.md) — модели запроса и ответа (Pydantic body, path/query, фильтрация полей)
+- [errors.md](errors.md) — обработка ошибок (HTTPException, exception_handler, переопределение валидации)
+
+related: [каталог python](../index.md), [validation.md](validation.md), [errors.md](errors.md)
+```
+
+```file:python/fastapi/testing.md
+# wiki: FastAPI-сервис и его тесты в офлайн-песочнице (v1)
+
+Для кодогенератора цеха «микросервис». Песочница без сети: тесты — только in-process.
+Стабильная версия: 0.139.0 (PyPI, 01.07.2026; Python >=3.10, Pydantic 2).
+
+## Обработчики: ошибки контракта → {code, message} + 400
+
+```python
+# GOOD: код ошибки из контракта, машиночитаемое тело, статус 400 для ошибок входа
+from fastapi import FastAPI
+from fastapi.responses import JSONResponse
+
+app = FastAPI()
+
+@app.post("/search/exact")
+def search_exact(body: SearchRequest) -> JSONResponse:
+    result = exact_search(body.query)          # ядро возвращает Result-стиль, не бросает
+    if result is None:
+        return JSONResponse(status_code=400,
+                            content={"code": "EMPTY_QUERY", "message": "query пуст"})
+    return JSONResponse(status_code=200, content=result)
+
+# BAD: raise HTTPException(500, "error") на ошибку ВХОДА — клиентская ошибка стала серверной,
+# тело не содержит code из контракта
+```
+
+## Тесты: TestClient, без сети и файлов
+
+**Требования:** `TestClient` основан на HTTPX и требует установленный пакет `httpx`.
+Тестовые функции — обычные `def` (не `async def`), вызовы клиента синхронны (без `await`).
+Данные передаются именованными параметрами: `json=...`, `headers=...`, `cookies=...`.
+
+**Подмена зависимостей:** для изоляции тестов используй `app.dependency_overrides`
+(подробнее — [dependencies.md](dependencies.md)). После каждого теста обязателен сброс: `app.dependency_overrides.clear()`.
+
+```python
+# GOOD: in-process клиент; фикстуры в тесте; проверяется и happy, и код ошибки
+from fastapi.testclient import TestClient
+from api import app
+
+client = TestClient(app)
+
+def test_exact_search_ok() -> None:
+    response = client.post("/search/exact", json={"query": "кот"})
+    assert response.status_code == 200
+
+def test_exact_search_empty_query_maps_to_400() -> None:
+    response = client.post("/search/exact", json={"query": ""})
+    assert response.status_code == 400
+    assert response.json()["code"] == "EMPTY_QUERY"
+
+# BAD: httpx.get("http://localhost:8000/...") — реальная сеть, в песочнице упадёт;
+# BAD: тест без проверки тела ошибки — код контракта не зафиксирован
+```
+
+## Ядро отдельно от транспорта
+
+```python
+# GOOD: ядро тестируется без FastAPI вообще (модульные тесты быстрее и точнее)
+def test_core_empty_query_returns_none() -> None:
+    assert exact_search("") is None
+```
+
+Правило: unit-тесты на каждый модуль ядра + TestClient-тесты на каждый endpoint;
+каждая ошибка контракта достижима хотя бы одним тестом.
+
+related: [fastapi](index.md), [зависимости](dependencies.md)
+```
+
+```file:python/fastapi/validation.md
+# wiki: fastapi — модели запроса и ответа (v1)
+
+Сценарий: определение и валидация данных запроса/ответа через Pydantic-модели.
+
+Когда использовать:
+- тело запроса — Pydantic-модель (не dict/список примитивов);
+- нужно автоматически получить 422 с детализацией по полям при невалидном входе;
+- ответ должен фильтровать поля (например, скрыть password) или валидироваться;
+- частичное обновление (PATCH) — только переданные поля.
+
+Когда НЕ использовать:
+- тело запроса — простой тип (int, str) без вложенной структуры (используй query/body с явным `Body()`);
+- ответ не требует фильтрации и схема OpenAPI не важна — можно вернуть dict;
+- потоковые ответы или бинарные данные (FileResponse, StreamingResponse).
+
+## Good
+
+```python
+from pydantic import BaseModel
+
+class Item(BaseModel):
+    name: str
+    description: str | None = None
+    price: float
+
+@app.post("/items/")
+async def create_item(item: Item) -> Item:          # аннотация возврата = валидация + схема
+    return item                                      # автоматический 422 при невалидном входе
+```
+
+```python
+class UserIn(BaseModel):
+    username: str
+    password: str
+
+class UserOut(BaseModel):
+    username: str
+
+@app.post("/users/", response_model=UserOut)         # response_model фильтрует password
+async def create_user(user: UserIn):
+    return user                                      # UserOut отбросит password
+```
+
+```python
+@app.patch("/items/{item_id}", response_model_exclude_unset=True)
+async def update_item(item_id: int, item: Item):
+    stored = db.get(item_id)
+    updated = stored.copy(update=item.model_dump(exclude_unset=True))
+    return updated                                  # в ответе только изменённые поля
+```
+
+## Bad
+
+```python
+@app.post("/items/")
+async def create_item(item: dict):                  # нет валидации, ручной разбор
+    name = item.get("name")
+    ...
+```
+
+```python
+@app.post("/users/")
+async def create_user(user: UserIn) -> dict:        # возврат dict без response_model
+    return user.model_dump()                        # password утекает в ответ
+```
+
+```python
+item.dict()                                         # Pydantic 2: устарело, используй model_dump()
+```
+
+related: [fastapi](index.md), [обработка ошибок](errors.md)
+```

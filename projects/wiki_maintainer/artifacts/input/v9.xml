@@ -1,0 +1,34 @@
+Документация библиотеки fastapi, часть 1 из 2 (по стандарту документации библиотек из python/index.md). Ровно ТРИ файла, ссылки только между ними и на существующие страницы.
+
+1) Обнови python/fastapi/index.md (action=update): карточка библиотеки — зафиксированная стабильная версия fastapi 0.139.0 (PyPI, 01.07.2026; yanked-версий нет; Python >=3.10, Pydantic 2, Starlette); существующие «когда использовать / когда НЕ» и ссылку на testing.md сохрани; добавь каталог сценарных страниц с ДВУМЯ строками: validation.md и errors.md (страницы dependencies.md пока НЕ существует — не ссылайся на неё).
+
+2) Добавь python/fastapi/validation.md (action=add): сценарий «модели запроса и ответа» — Pydantic-модель как body, комбинирование path/query/body, автоматический 422, аннотация возврата vs response_model, фильтрация полей (UserIn/UserOut), response_model_exclude_unset; good/bad из материала. related: только index.md и errors.md.
+
+3) Добавь python/fastapi/errors.md (action=add): сценарий «обработка ошибок» — raise HTTPException (не return), app.exception_handler для бизнес-исключений, переопределение RequestValidationError (смена статуса на 400 и формата тела под контракт code+message); negative: HTTPException 500 на ошибку входа; return вместо raise. related: только index.md и validation.md.
+
+Каждая страница компактная (лимит цеха), good/bad — 2–3 примера. В каждой ревизии возвращай ПОЛНЫЙ file map (все три файла).
+Материал: Проверено 2026-07-10, только официальные источники (pypi.org/project/fastapi; fastapi.tiangolo.com: tutorial/body, tutorial/response-model, tutorial/handling-errors).
+
+ВЕРСИЯ: fastapi 0.139.0 — текущая стабильная на PyPI (релиз 01.07.2026), yanked-версий нет. Требования: Python >=3.10; Pydantic 2; построен на Starlette.
+
+МОДЕЛИ ЗАПРОСА (tutorial/body):
+- Pydantic-модель в параметрах обработчика = тело запроса; одиночные типы (int, str) = query-параметры; параметр, входящий в маршрут, = path.
+- class Item(BaseModel): name: str; description: str | None = None; price: float — поля без дефолта обязательны, с None — опциональны.
+- Комбинирование: def update_item(item_id: int, item: Item, q: str | None = None) — FastAPI сам распознаёт path/body/query.
+- Невалидный вход автоматически даёт 422 Unprocessable Entity с детализацией по полям — свой код валидации писать не нужно.
+- Доступ к данным: item.model_dump() (Pydantic 2; не устаревший .dict()).
+
+МОДЕЛИ ОТВЕТА (tutorial/response-model):
+- Предпочтительно: аннотация возврата def create_item(item: Item) -> Item — даёт валидацию ответа, фильтрацию и схему OpenAPI.
+- response_model=UserOut нужен, когда возвращаешь другой тип (dict, ORM-объект) или фильтруешь поля: UserIn с password на входе, UserOut без password на выходе — FastAPI отбрасывает необъявленные поля автоматически (защита от утечки).
+- Вариант с наследованием: class UserIn(BaseUser) добавляет password; аннотация возврата -> BaseUser — типы сходятся и поле отфильтровано.
+- response_model_exclude_unset=True — в ответ попадают только явно установленные поля (без дефолтов).
+
+ОШИБКИ (tutorial/handling-errors):
+- raise HTTPException(status_code=404, detail="Item not found") — именно raise, не return; detail — любой JSON-сериализуемый объект; можно передать headers.
+- Кастомное бизнес-исключение: @app.exception_handler(UnicornException) — async def handler(request: Request, exc), вернуть JSONResponse(status_code=..., content=...).
+- Переопределение валидационных ошибок: @app.exception_handler(RequestValidationError) — можно сменить статус (например на 400) и формат тела; доступны exc.errors() и exc.body (через jsonable_encoder).
+- Для перехвата HTTP-ошибок в своём обработчике использовать StarletteHTTPException — ловит и внутренние ошибки Starlette.
+- Дефолтные обработчики переиспользуются: from fastapi.exception_handlers import http_exception_handler — залогировать и делегировать.
+
+ИСТОЧНИКИ: https://pypi.org/project/fastapi/ ; https://fastapi.tiangolo.com/tutorial/body/ ; https://fastapi.tiangolo.com/tutorial/response-model/ ; https://fastapi.tiangolo.com/tutorial/handling-errors/

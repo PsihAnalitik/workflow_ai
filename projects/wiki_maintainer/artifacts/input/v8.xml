@@ -1,0 +1,49 @@
+Документация библиотеки fastapi по стандарту документации библиотек (см. правило пополнения python/index.md): фиксация стабильной версии, фактура из официальных источников, сценарные страницы с шаблонами и good/bad.
+
+1) Обнови python/fastapi/index.md (action=update): карточка библиотеки — зафиксированная стабильная версия fastapi 0.139.0 (PyPI, 01.07.2026; yanked-версий нет; Python >=3.10, Pydantic 2, Starlette); существующие «когда использовать / когда НЕ» сохрани по смыслу; добавь каталог сценарных страниц (таблица ссылок: validation.md, errors.md, dependencies.md, testing.md).
+
+2) Добавь python/fastapi/validation.md (action=add): сценарий «модели запроса и ответа» — Pydantic-модель как body, комбинирование path/query/body, автоматический 422 на невалидный вход, аннотация возврата vs response_model, фильтрация полей ответа (UserIn/UserOut), response_model_exclude_unset; good/bad из материала (когда response_model уместен, а когда достаточно аннотации возврата).
+
+3) Добавь python/fastapi/errors.md (action=add): сценарий «обработка ошибок» — raise HTTPException (не return), кастомные исключения через app.exception_handler, переопределение RequestValidationError (в т.ч. приведение тела ошибки к контракту сервиса — согласуется с существующей практикой code+message на testing.md); negative: HTTPException 500 на ошибку входа; return вместо raise.
+
+4) Добавь python/fastapi/dependencies.md (action=add): сценарий «зависимости» — Depends с Annotated (официально рекомендованная форма), переиспользуемый type alias, подмена в тестах через app.dependency_overrides со сбросом; negative: Depends(func()) — вызов вместо передачи функции; незачищенные overrides между тестами.
+
+5) Обнови python/fastapi/testing.md (action=update): привяжи к версии 0.139.0; добавь: TestClient требует установленный httpx; тесты — обычные def, не async; ссылку на dependency_overrides (dependencies.md). Существующие разделы и GOOD/BAD примеры офлайн-песочницы сохрани дословно.
+
+Каждая страница компактная (лимит цеха), good/bad — 2–3 примера на раздел.
+Материал: Проверено 2026-07-10, только официальные источники (pypi.org/project/fastapi, fastapi.tiangolo.com — tutorial/body, tutorial/response-model, tutorial/handling-errors, tutorial/dependencies, tutorial/testing, advanced/testing-dependencies).
+
+ВЕРСИЯ: fastapi 0.139.0 — текущая стабильная на PyPI (релиз 01.07.2026), yanked-версий нет. Требования: Python >=3.10; Pydantic 2; построен на Starlette.
+
+МОДЕЛИ ЗАПРОСА (tutorial/body):
+- Pydantic-модель в параметрах обработчика = тело запроса; одиночные типы (int, str) = query-параметры; параметр из маршрута = path.
+- class Item(BaseModel): name: str; description: str | None = None; price: float — поля без дефолта обязательны, с None — опциональны.
+- Комбинирование: @app.put("/items/[item_id в фигурных скобках]") def update_item(item_id: int, item: Item, q: str | None = None) — FastAPI сам распознаёт path/body/query.
+- Невалидный вход автоматически возвращает 422 Unprocessable Entity с детализацией полей — свой код писать не нужно.
+- Доступ к данным: item.model_dump() (Pydantic 2; не .dict()).
+
+МОДЕЛИ ОТВЕТА (tutorial/response-model):
+- Предпочтительно: аннотация возврата def create_item(item: Item) -> Item — валидация, фильтрация, схема OpenAPI.
+- response_model=UserOut нужен, когда возвращаешь другой тип (dict, ORM-объект) или фильтруешь поля: UserIn с password на входе, UserOut без password на выходе — FastAPI отбрасывает лишние поля автоматически (безопасность).
+- Вариант с наследованием: class UserIn(BaseUser) с password; аннотация -> BaseUser — типы сходятся и поле отфильтровано.
+- response_model_exclude_unset=True — в ответ попадают только явно установленные поля.
+
+ОШИБКИ (tutorial/handling-errors):
+- raise HTTPException(status_code=404, detail="Item not found") — именно raise, не return; detail — любой JSON-сериализуемый объект.
+- Кастомное бизнес-исключение: @app.exception_handler(UnicornException) async def handler(request: Request, exc) -> JSONResponse(status_code=..., content=...).
+- Переопределение валидационных ошибок: @app.exception_handler(RequestValidationError) — можно сменить статус (например на 400) и формат тела (exc.errors(), exc.body через jsonable_encoder).
+- Для перехвата HTTP-ошибок в обработчике использовать StarletteHTTPException (ловит и внутренние ошибки Starlette).
+- Дефолтные обработчики можно переиспользовать: from fastapi.exception_handlers import http_exception_handler — залогировать и делегировать.
+
+ЗАВИСИМОСТИ (tutorial/dependencies):
+- Официальная форма — Annotated: def read_items(commons: Annotated[dict, Depends(common_parameters)]). Зависимость — обычная функция (def или async def) с теми же видами параметров, что у обработчиков.
+- Переиспользование: CommonsDep = Annotated[dict, Depends(common_parameters)] — один источник истины, работает автодополнение.
+- В Depends() передаётся сама функция, НЕ её вызов: Depends(common_parameters), не Depends(common_parameters()).
+
+ТЕСТЫ (tutorial/testing, advanced/testing-dependencies):
+- TestClient требует установленный httpx (pip install httpx); импорт from fastapi.testclient import TestClient.
+- Тестовые функции — обычные def (не async), вызовы клиента — без await; pytest-конвенция test_*.
+- Передача данных: client.post(url, json=..., headers=..., cookies=...).
+- Подмена зависимостей: app.dependency_overrides[common_parameters] = override_dependency; ключ — исходная функция, значение — подменная; после теста сбросить app.dependency_overrides.clear() — иначе подмена утечёт в другие тесты.
+
+ИСТОЧНИКИ: https://pypi.org/project/fastapi/ ; https://fastapi.tiangolo.com/tutorial/body/ ; https://fastapi.tiangolo.com/tutorial/response-model/ ; https://fastapi.tiangolo.com/tutorial/handling-errors/ ; https://fastapi.tiangolo.com/tutorial/dependencies/ ; https://fastapi.tiangolo.com/tutorial/testing/ ; https://fastapi.tiangolo.com/advanced/testing-dependencies/

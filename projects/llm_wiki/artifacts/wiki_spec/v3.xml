@@ -1,0 +1,44 @@
+<wiki_change derived_from="input@v1">
+  <summary>Новая область methodology: rework-цикл с якорными находками, стадия tech_selection, архитектура цеха wiki_maintainer</summary>
+  <pages>
+    <page path="methodology/index.md" action="add" unverified="false">
+      <purpose>область: методология фабрики — проектирование цехов, стадий и циклов доработки</purpose>
+      <source_chunks>d1:03, d1:04, d1:05, d1:08</source_chunks>
+      <index_row>| [methodology](methodology/index.md) | методология фабрики: цеха, стадии, rework-циклы |</index_row>
+      <related>index.md</related>
+    </page>
+    <page path="methodology/rework-cycle.md" action="add" unverified="false">
+      <purpose>Rework-цикл: адресная доработка артефактов — якорные находки по id, формат &lt;iteration_context&gt; с предыдущим артефактом и &lt;finding anchor="G-01"&gt;, вариант B (целый артефакт + находки, не inline-комментарии); сходимость task_spec за 2 итерации против расходимости 3+ без rework-контекста</purpose>
+      <source_chunks>d1:05, d1:06</source_chunks>
+      <index_row>| [rework-cycle](rework-cycle.md) | rework-цикл: якорные находки и адресная доработка артефактов |</index_row>
+      <related>methodology/index.md, methodology/tech-selection.md</related>
+    </page>
+    <page path="methodology/tech-selection.md" action="add" unverified="false">
+      <purpose>Стадия tech_selection: выбор технологического стека из wiki-каталога — формат tech_stack.xml, селективный инжект страниц выбранной технологии в контекст downstream-стадий, judge-гейт «код в пределах стека», интеграция через wiki_refs_from и M-16 wiki_loader</purpose>
+      <source_chunks>d1:04, d1:05</source_chunks>
+      <index_row>| [tech-selection](tech-selection.md) | стадия tech_selection: выбор технологий из wiki-каталога |</index_row>
+      <related>methodology/index.md, methodology/rework-cycle.md</related>
+    </page>
+    <page path="methodology/wiki-shop.md" action="add" unverified="false">
+      <purpose>Цех wiki_maintainer: архитектура автоматической актуализации wiki — пайплайн wiki_change_spec → wiki_pages → wiki-apply (M-18), детерминированный applier с проверками на временной копии, формат wiki_change_spec.xml, FR-17 приёмка через CHANGELOG+sha256, dogfooding-опыт (CLI-страница добавлена самим цехом)</purpose>
+      <source_chunks>d1:08, d1:09, d1:10</source_chunks>
+      <index_row>| [wiki-shop](wiki-shop.md) | цех wiki_maintainer: автоматическая актуализация wiki |</index_row>
+      <related>methodology/index.md, methodology/tech-selection.md</related>
+    </page>
+  </pages>
+  <index_updates>
+    <index path="index.md">добавить строку methodology в таблицу областей</index>
+    <index path="methodology/index.md">строки rework-cycle, tech-selection, wiki-shop (индекс сам добавляется в pages — всё равно указывай)</index>
+  </index_updates>
+  <backlog>
+    - agents/prompts/review.md — методология прожарки LLM-промптов (prompt_guide: belief state, curse of instructions, 5 механизмов)
+    - agents/prompts/examples/good.md, bad.md, practices.md — few-shot примеры с тегами &lt;meant&gt;/&lt;not_meant&gt; по 13 приёмам
+    - methodology/workshop-cli.md — CLI фабрики: workshop shops, run, 11 подкоманд
+    - python/duckdb/index.md — DuckDB: когда использовать / когда НЕ, примеры
+    - python/fastapi/index.md — FastAPI: каталог технологии
+    - python/pandas/index.md — Pandas: каталог технологии
+    - mcp-server.md — ТЗ на MCP-сервер для коннекта фабрики с Claude Code
+    - methodology/wiki-renderer.md — M-17 витрина: рендер Markdown+Mermaid в статический HTML
+    - Реструктуризация wiki: области agents/, python/, domains/, assets/ (план из d1:03-d1:04)
+  </backlog>
+</wiki_change>

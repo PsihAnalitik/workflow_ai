@@ -1,0 +1,10 @@
+{
+  "base_prompt_path": "configs/prompt_roaster/prompts/roast.base.md",
+  "stage_map_path": "configs/prompt_roaster/prompts/empty.stage.md",
+  "wiki_refs": [
+    {"path": "wiki/agents/prompts/review.md", "version": "v1"},
+    {"path": "wiki/agents/prompts/examples", "version": "v1"}
+  ],
+  "tools": ["material_search", "material_get"],
+  "llm_profile": "default"
+}

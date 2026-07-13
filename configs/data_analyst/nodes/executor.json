@@ -1,0 +1,6 @@
+{
+  "base_prompt_path": "configs/data_analyst/prompts/codegen.base.md",
+  "stage_map_path": "configs/data_analyst/prompts/empty.stage.md",
+  "wiki_refs_from": "tech_selection",
+  "llm_profile": "default"
+}

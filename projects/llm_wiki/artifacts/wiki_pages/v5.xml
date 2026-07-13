@@ -1,0 +1,152 @@
+```file:agent-workshop/index.md
+# wiki: agent-workshop (v1)
+
+MCP-сервер agent-workshop: регистрация цехов, конвейеры, smoke-тесты,
+инструменты агентов.
+
+| Страница | Что внутри |
+|---|---|
+| [dynamic-wiki-refs](dynamic-wiki-refs.md) | динамические ссылки на wiki в цехах |
+| [mcp-server](mcp-server.md) | устройство MCP-сервера agent-workshop |
+| [smoke-test](smoke-test.md) | smoke-тесты цехов и конвейеров |
+| [web-search](web-search.md) | web_search tool: Tavily, tool-цикл, принудительный финал |
+| [wiki-tree-visibility](wiki-tree-visibility.md) | видимость дерева wiki для ревьюера цеха |
+
+## related
+
+- [methodology](../methodology/index.md) — методология фабрики
+- [python](../python/index.md) — документация библиотек
+```
+
+```file:agent-workshop/web-search.md
+# wiki: web-search (v1)
+
+Инструмент `web_search` для LLM-агентов в цехах фабрики.
+Реализован на сессии a06a07b9 (2026-07-10) через GRACE-цикл:
+DevelopmentPlan → MENTAL_TEST → код.
+
+## Архитектура
+
+- **Модуль M-21** `workshop/web_search.py` — клиент Tavily API
+  (TSK-2101). Поисковый бэкенд: Tavily, ключ `TAVILY_API_KEY`
+  из `.env`.
+- **`workshop/llm_client.py`** — `ToolSpec` (имя + JSON-схема +
+  исполнитель), поле `LLMResponse.tool_trace`, расширенная
+  сигнатура `complete(prompt, params, tools)`. Провайдер:
+  deepseek-v4-pro через openai-совместимый function calling.
+- **Tool-цикл** (TSK-0402 в M-04): модель вызывает инструмент,
+  исполнитель возвращает результат текстом, модель продолжает
+  ответ. Адаптер реализован в `llm_client.py`.
+- **Реестр инструментов** — поле `NodeConfig.tools` (TSK-2102),
+  в конфиге узла: `"tools": ["web_search"]`.
+
+## Принудительный финал после 5 раундов
+
+Проблема: deepseek при неидеальных сниппетах бесконечно уточнял
+запрос и выжигал лимит раундов, роняя узел с `TOOL_LOOP_EXCEEDED`.
+Решение: после 5 раундов — принудительный финал, модель обязана
+ответить из накопленных результатов. Если провайдер игнорирует и
+это — ошибка с трейсом вызовов в `details`.
+
+## Интеграция с wiki_spec
+
+Узел `wiki_spec` получил `web_search` (tools + правило в промпт):
+только точечная проверка фактов (существование технологии,
+стабильная версия, имя пакета), 1–2 запроса, не исследование.
+Поиск не заменяет материал — политика `unverified` определяется
+наличием материала в запросе, а не результатами поиска.
+
+## related
+
+- [agent-workshop](index.md) — MCP-сервер agent-workshop
+- [wiki-tree-visibility](wiki-tree-visibility.md) — видимость дерева wiki
+```
+
+```file:agent-workshop/wiki-tree-visibility.md
+# wiki: wiki-tree-visibility (v1)
+
+Механизм, дающий ревьюеру цеха `wiki_pages` видимость реального
+дерева wiki. Внедрён на сессии a06a07b9 (2026-07-10) вместо
+обходного манёвра с копиями подстраниц.
+
+## Проблема
+
+Ревьюер не видел применённые ранее подстраницы — все ссылки
+на них выглядели как «битые». Приходилось тащить в file map
+прогона дословные копии подстраниц: правка одной строки
+обходилась в 12 файлов. Обход работал стабильно, но был
+хрупким и раздувал контекст.
+
+## Решение
+
+По принципу «код — следствие артефактов» обновлён `.grace/DevelopmentPlan.xml`
+(TSK-1606 в M-16, шаг сборки промпта в M-06), затем код:
+
+- **`workshop/wiki_loader.py`** — функция `tree_listing(root)`:
+  собирает блок `=== wiki tree ===` с путями всех страниц wiki
+  (без содержимого — контекст не раздувается). Несуществующий
+  корень — явная ошибка, а не пустой листинг, чтобы опечатка
+  в конфиге не превратила все ссылки в «битые».
+- **`workshop/models.py`** — опциональное поле
+  `NodeConfig.wiki_tree_root` (по умолчанию `None` — остальные
+  узлы не затронуты).
+- **`workshop/workshop_node.py`** — `build_prompt` включает
+  блок `=== wiki tree ===` в INPUTS цеха.
+
+## Результат
+
+Обходной манёвр с копиями подстраниц отменён. Ревьюер видит
+актуальное дерево wiki при каждом прогоне, ссылки проверяются
+по реальному состоянию файловой системы.
+
+## related
+
+- [agent-workshop](index.md) — MCP-сервер agent-workshop
+- [web-search](web-search.md) — web_search tool для агентов
+```
+
+```file:index.md
+# wiki: карта областей (v1)
+
+Вики строится цехом `llm_wiki` из материала пользователя — выгрузок чатов,
+документов и ссылок. Области рождаются из тем материала: новая область =
+директория со своим `index.md` + строка в таблице ниже. Содержимое страниц
+трассируется к чанкам исходного материала (поле source_chunks спецификации).
+
+| Область | Что внутри |
+|---|---|
+| [agent-workshop](agent-workshop/index.md) | MCP-сервер agent-workshop: цеха, конвейеры, smoke-тесты |
+| [payments](payments/index.md) | интеграция платежей: Stripe, вебхуки, подписки |
+| [search](search/index.md) | поиск по каталогу: Postgres FTS, ранжирование |
+| [methodology](methodology/index.md) | методология фабрики: цеха, стадии, rework-циклы |
+| [python](python/index.md) | документация Python-библиотек: pandas, fastapi, duckdb |
+
+_Вики наполняется по мере прогона цеха `llm_wiki` — новые области
+добавляются в таблицу выше._
+
+## related
+
+- [agent-workshop](agent-workshop/index.md) — MCP-сервер agent-workshop
+- [payments](payments/index.md) — интеграция платежей
+- [search](search/index.md) — поиск по каталогу
+- [methodology](methodology/index.md) — методология фабрики
+```
+
+```file:python/index.md
+# wiki: python (v1)
+
+Документация Python-библиотек, закреплённых на стабильных версиях.
+Каждая карточка следует стандарту документирования библиотек
+(фиксация версии через PyPI + yanked-проверка, официальные источники,
+сценарии с positive/negative-примерами, раздел «Когда использовать /
+Когда НЕ»). Стандарт будет оформлен отдельной страницей в methodology
+следующим прогоном.
+
+| Библиотека | Что внутри |
+|---|---|
+| _(подстраницы будут добавлены следующими прогонами)_ | |
+
+## related
+
+- [methodology](../methodology/index.md) — методология фабрики, стандарты
+```

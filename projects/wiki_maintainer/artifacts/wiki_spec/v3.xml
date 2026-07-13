@@ -1,0 +1,14 @@
+<wiki_change derived_from="input@v1">
+  <source_request>Добавь в wiki страницу про CLI фабрики (предлагаемая область — methodology, реши по структуре). Материал (проверенный, из кода): CLI фабрики — python -m workshop. Запуск БЕЗ подкоманды открывает интерактивное меню (запустить цех / статус проектов / выход). Команды: shops — реестр цехов, сканирует configs/*/graph.json, показывает стадии с гейтами (review/judge/hitl), project и наличие autopilot-графа; run &lt;имя-цеха или путь к graph.json&gt; &lt;вход: текст или путь к файлу&gt; с флагами --autopilot (взять graph.autopilot.json цеха), --resume (пропустить узлы с принятыми артефактами в сторе), --store DIR, --log FILE, --project X — запуск конвейера цеха; status [--project X] — сводка по projects/*: артефакты стора с максимальными версиями и итерации из журнала; verify-acceptance &lt;каталог цеха или CHANGELOG.md&gt; — механическая сверка sha256 файлов с приёмочными записями (FR-17), маркер removed снимает путь с проверки; extract &lt;артефакт&gt; &lt;каталог&gt; — распаковка file map в файлы; package &lt;graph.json&gt; — детерминированная сборка пакета проекта: код+git+frozen deps+README (FR-13); assemble &lt;product.json&gt; — сборка продукта из сервисов-пакетов с общим docker-compose (FR-14); decompose &lt;graph.json&gt; — порождение подмодулей-проектов из принятого domains.xml (FR-15); wiki-check [--wiki DIR] — проверка wiki: index.md в каждой директории, битые ссылки, страницы-сироты вне индексов, линт двойных фигурных скобок (в документации пиши это словами, литералы скобок запрещены); wiki-render [--wiki DIR --out DIR] — статическая HTML-витрина (Mermaid client-side); wiki-apply &lt;артефакт wiki_pages&gt; [--wiki DIR] — применение file map к wiki: валидация путей, полный wiki-check по временной копии, атомарная запись, готовые строки для wiki/CHANGELOG.md. HITL при run: отчёты гейтов печатаются перед артефактом, решения a (принять) / r (правки) / x (отклонить), вопросы NEEDS_CLARIFICATION задаются в терминале.</source_request>
+  <summary>Добавление страницы methodology/workshop-cli.md с полным справочником CLI фабрики цеха (python -m workshop).</summary>
+  <pages>
+    <page path="methodology/workshop-cli.md" action="add" unverified="false">
+      <purpose>справочник по CLI цеха: интерактивное меню, команды (shops, run, status, package, assemble, decompose, wiki-*), аргументы, флаги и HITL-сценарии</purpose>
+      <index_row>- [workshop-cli](workshop-cli.md) — CLI фабрики: запуск цеха, статус проектов, утилиты артефактов и вики</index_row>
+      <related>methodology/index.md, methodology/grace.md</related>
+    </page>
+  </pages>
+  <index_updates>
+    <index path="methodology/index.md">добавить строку workshop-cli в существующий маркированный список после examples</index>
+  </index_updates>
+</wiki_change>

@@ -1,0 +1,396 @@
+```file:main.py
+import sys
+import pandas as pd
+from mod_01_filter import filter_by_date
+from mod_02_exclude import exclude_missing
+from mod_03_revenue_by_category import revenue_by_category
+from mod_04_revenue_by_month import revenue_by_month
+from mod_05_top3 import top3_products
+from mod_06_avg_receipt import avg_receipt_by_region
+from mod_07_report import format_report
+
+def main() -> None:
+    if len(sys.argv) < 2:
+        print("Usage: python main.py <path_to_csv>")
+        sys.exit(1)
+
+    path = sys.argv[1]
+    df = pd.read_csv(path, parse_dates=["date"], dtype={"qty": "Int64", "price": "Int64"})
+
+    # Определение квартала по максимальной дате
+    if df.empty:
+        print("Файл не содержит данных.")
+        return
+
+    max_date = df["date"].max()
+    year = max_date.year
+    quarter = max_date.quarter
+    if quarter == 1:
+        start_date = f"{year}-01-01"
+        end_date = f"{year}-03-31"
+    elif quarter == 2:
+        start_date = f"{year}-04-01"
+        end_date = f"{year}-06-30"
+    elif quarter == 3:
+        start_date = f"{year}-07-01"
+        end_date = f"{year}-09-30"
+    else:
+        start_date = f"{year}-10-01"
+        end_date = f"{year}-12-31"
+
+    # Фильтрация по кварталу
+    filtered_df, err = filter_by_date(df, start_date, end_date)
+    if err:
+        print(f"Ошибка фильтрации: {err}")
+        return
+
+    if filtered_df.empty:
+        # Если данных нет, отчёт всё равно формируется
+        clean_df = filtered_df
+        excluded_count = 0
+    else:
+        clean_df, excluded_count = exclude_missing(filtered_df)
+
+    # Расчёт аналитических показателей
+    rev_cat = revenue_by_category(clean_df)
+    rev_month = revenue_by_month(clean_df)
+    top3 = top3_products(clean_df)
+    avg_rec = avg_receipt_by_region(clean_df)
+
+    report = format_report(rev_cat, rev_month, top3, avg_rec, excluded_count)
+    print(report)
+
+if __name__ == "__main__":
+    main()
+```
+
+```file:mod_01_filter.py
+import pandas as pd
+from typing import Optional, Tuple
+
+def filter_by_date(
+    df: pd.DataFrame, start_date: str, end_date: str
+) -> Tuple[Optional[pd.DataFrame], Optional[str]]:
+    """Фильтрация строк по интервалу дат [start_date, end_date].
+
+    Возвращает (filtered_df, None) при успехе, иначе (None, сообщение об ошибке).
+    """
+    if start_date > end_date:
+        return None, "INVALID_DATE_RANGE"
+
+    if not pd.api.types.is_datetime64_any_dtype(df["date"]):
+        df = df.copy()
+        df["date"] = pd.to_datetime(df["date"])
+
+    start = pd.Timestamp(start_date)
+    end = pd.Timestamp(end_date)
+    mask = (df["date"] >= start) & (df["date"] <= end)
+    filtered_df = df.loc[mask].reset_index(drop=True)
+    return filtered_df, None
+```
+
+```file:mod_02_exclude.py
+import pandas as pd
+from typing import Tuple
+
+def exclude_missing(
+    df: pd.DataFrame,
+) -> Tuple[pd.DataFrame, int]:
+    """Удаляет строки с пропусками в qty или price, возвращает (чистый df, количество исключённых)."""
+    if df.empty:
+        return df, 0
+
+    missing_mask = df["qty"].isna() | df["price"].isna()
+    excluded_count = missing_mask.sum()
+    clean_df = df[~missing_mask].reset_index(drop=True)
+    return clean_df, excluded_count
+```
+
+```file:mod_03_revenue_by_category.py
+import pandas as pd
+
+def revenue_by_category(df: pd.DataFrame) -> pd.DataFrame:
+    """Выручка по категориям: столбцы category, revenue."""
+    if df.empty:
+        return pd.DataFrame(columns=["category", "revenue"])
+
+    df = df.copy()
+    df["revenue"] = df["qty"] * df["price"]
+    result = (
+        df.groupby("category", as_index=False)
+        .agg(revenue=("revenue", "sum"))
+        .sort_values("revenue", ascending=False)
+        .reset_index(drop=True)
+    )
+    return result
+```
+
+```file:mod_04_revenue_by_month.py
+import pandas as pd
+
+def revenue_by_month(df: pd.DataFrame) -> pd.DataFrame:
+    """Выручка по месяцам: столбцы month, revenue."""
+    if df.empty:
+        return pd.DataFrame(columns=["month", "revenue"])
+
+    df = df.copy()
+    if not pd.api.types.is_datetime64_any_dtype(df["date"]):
+        df["date"] = pd.to_datetime(df["date"])
+    df["month"] = df["date"].dt.strftime("%Y-%m")
+    df["revenue"] = df["qty"] * df["price"]
+    result = (
+        df.groupby("month", as_index=False)
+        .agg(revenue=("revenue", "sum"))
+        .sort_values("month")
+        .reset_index(drop=True)
+    )
+    return result
+```
+
+```file:mod_05_top3.py
+import pandas as pd
+
+def top3_products(df: pd.DataFrame) -> pd.DataFrame:
+    """Топ-3 продукта по выручке: столбцы product, category, revenue."""
+    if df.empty:
+        return pd.DataFrame(columns=["product", "category", "revenue"])
+
+    df = df.copy()
+    df["revenue"] = df["qty"] * df["price"]
+    agg = (
+        df.groupby(["product", "category"], as_index=False)
+        .agg(revenue=("revenue", "sum"))
+        .sort_values("revenue", ascending=False)
+        .head(3)
+        .reset_index(drop=True)
+    )
+    return agg
+```
+
+```file:mod_06_avg_receipt.py
+import pandas as pd
+
+def avg_receipt_by_region(df: pd.DataFrame) -> pd.DataFrame:
+    """Средний чек по регионам: столбцы region, avg_receipt."""
+    if df.empty:
+        return pd.DataFrame(columns=["region", "avg_receipt"])
+
+    df = df.copy()
+    df["revenue"] = df["qty"] * df["price"]
+    result = (
+        df.groupby("region", as_index=False)
+        .agg(
+            total_revenue=("revenue", "sum"),
+            transaction_count=("revenue", "size"),
+        )
+    )
+    result["avg_receipt"] = result["total_revenue"] / result["transaction_count"]
+    result = result[["region", "avg_receipt"]]
+    return result
+```
+
+```file:mod_07_report.py
+from typing import Any
+import pandas as pd
+
+def format_report(
+    revenue_cat: pd.DataFrame,
+    revenue_month: pd.DataFrame,
+    top3: pd.DataFrame,
+    avg_receipt: pd.DataFrame,
+    excluded_count: int,
+) -> str:
+    """Формирует текстовый отчёт с заголовками и таблицами."""
+    lines = []
+    lines.append("Выручка по категориям")
+    lines.append(revenue_cat.to_string(index=False) if not revenue_cat.empty else "Нет данных")
+    lines.append("")
+    lines.append("Выручка по месяцам")
+    lines.append(revenue_month.to_string(index=False) if not revenue_month.empty else "Нет данных")
+    lines.append("")
+    lines.append("Топ-3 продукта")
+    lines.append(top3.to_string(index=False) if not top3.empty else "Нет данных")
+    lines.append("")
+    lines.append("Средний чек по регионам")
+    lines.append(avg_receipt.to_string(index=False) if not avg_receipt.empty else "Нет данных")
+    lines.append("")
+    lines.append(f"Исключено строк с пропусками: {excluded_count}")
+    return "\n".join(lines)
+```
+
+```file:test_mod_01_filter.py
+import pandas as pd
+from mod_01_filter import filter_by_date
+
+def test_filter_by_date_happy_path() -> None:
+    df = pd.DataFrame({
+        "date": pd.to_datetime(["2026-01-05", "2026-02-20", "2026-04-01"]),
+        "value": [10, 20, 30],
+    })
+    result, err = filter_by_date(df, "2026-01-01", "2026-03-31")
+    assert err is None
+    assert result is not None
+    assert len(result) == 2
+    assert result.iloc[0]["date"] == pd.Timestamp("2026-01-05")
+    assert result.iloc[1]["date"] == pd.Timestamp("2026-02-20")
+
+def test_filter_by_date_invalid_range() -> None:
+    df = pd.DataFrame({"date": pd.to_datetime(["2026-01-05"])})
+    result, err = filter_by_date(df, "2026-03-01", "2026-01-01")
+    assert result is None
+    assert err == "INVALID_DATE_RANGE"
+
+def test_filter_by_date_no_rows() -> None:
+    df = pd.DataFrame({
+        "date": pd.to_datetime(["2026-01-05", "2026-02-20"]),
+        "value": [10, 20],
+    })
+    result, err = filter_by_date(df, "2025-01-01", "2025-12-31")
+    assert err is None
+    assert result is not None
+    assert result.empty
+```
+
+```file:test_mod_02_exclude.py
+import pandas as pd
+from mod_02_exclude import exclude_missing
+
+def test_exclude_missing_happy() -> None:
+    df = pd.DataFrame({
+        "qty": pd.array([1, None, 3, 4], dtype="Int64"),
+        "price": pd.array([10, 20, None, 40], dtype="Int64"),
+        "other": ["a", "b", "c", "d"],
+    })
+    clean, cnt = exclude_missing(df)
+    assert cnt == 2
+    assert len(clean) == 2
+    assert clean["qty"].isna().sum() == 0
+    assert clean["price"].isna().sum() == 0
+
+def test_exclude_missing_empty_input() -> None:
+    df = pd.DataFrame(columns=["qty", "price"])
+    clean, cnt = exclude_missing(df)
+    assert cnt == 0
+    assert clean.empty
+```
+
+```file:test_mod_03_revenue_by_category.py
+import pandas as pd
+from mod_03_revenue_by_category import revenue_by_category
+
+def test_revenue_by_category_happy() -> None:
+    df = pd.DataFrame({
+        "category": ["electronics", "electronics", "electronics"],
+        "qty": pd.array([3, 1, 2], dtype="Int64"),
+        "price": pd.array([45000, 92000, 45000], dtype="Int64"),
+    })
+    result = revenue_by_category(df)
+    assert len(result) == 1
+    assert result.loc[0, "category"] == "electronics"
+    assert result.loc[0, "revenue"] == 3*45000 + 1*92000 + 2*45000
+
+def test_revenue_by_category_empty_input() -> None:
+    df = pd.DataFrame(columns=["category", "qty", "price"])
+    result = revenue_by_category(df)
+    assert result.empty
+    assert list(result.columns) == ["category", "revenue"]
+```
+
+```file:test_mod_04_revenue_by_month.py
+import pandas as pd
+from mod_04_revenue_by_month import revenue_by_month
+
+def test_revenue_by_month_happy() -> None:
+    df = pd.DataFrame({
+        "date": pd.to_datetime(["2026-01-05", "2026-01-20", "2026-02-10"]),
+        "qty": pd.array([1, 2, 3], dtype="Int64"),
+        "price": pd.array([1000, 1000, 500], dtype="Int64"),
+    })
+    result = revenue_by_month(df)
+    assert len(result) == 2
+    assert result.loc[result["month"] == "2026-01", "revenue"].item() == 3000
+    assert result.loc[result["month"] == "2026-02", "revenue"].item() == 1500
+
+def test_revenue_by_month_empty_input() -> None:
+    df = pd.DataFrame(columns=["date", "qty", "price"])
+    result = revenue_by_month(df)
+    assert result.empty
+    assert list(result.columns) == ["month", "revenue"]
+```
+
+```file:test_mod_05_top3.py
+import pandas as pd
+from mod_05_top3 import top3_products
+
+def test_top3_products_happy() -> None:
+    df = pd.DataFrame({
+        "product": ["A", "B", "C", "D"],
+        "category": ["cat", "cat", "cat", "cat"],
+        "qty": pd.array([1, 3, 1, 2], dtype="Int64"),
+        "price": pd.array([1000, 1000, 1500, 1000], dtype="Int64"),
+    })
+    # revenues: A=1000, B=3000, C=1500, D=2000 -> top3: B (3000), D (2000), C (1500)
+    result = top3_products(df)
+    assert len(result) == 3
+    assert list(result["product"]) == ["B", "D", "C"]
+    assert list(result["revenue"]) == [3000, 2000, 1500]
+
+def test_top3_products_less_than_3() -> None:
+    df = pd.DataFrame({
+        "product": ["X", "Y"],
+        "category": ["cat", "cat"],
+        "qty": pd.array([1, 2], dtype="Int64"),
+        "price": pd.array([10, 20], dtype="Int64"),
+    })
+    result = top3_products(df)
+    assert len(result) == 2
+
+def test_top3_products_empty_input() -> None:
+    df = pd.DataFrame(columns=["product", "category", "qty", "price"])
+    result = top3_products(df)
+    assert result.empty
+    assert list(result.columns) == ["product", "category", "revenue"]
+```
+
+```file:test_mod_06_avg_receipt.py
+import pandas as pd
+from mod_06_avg_receipt import avg_receipt_by_region
+
+def test_avg_receipt_by_region_happy() -> None:
+    df = pd.DataFrame({
+        "region": ["msk", "msk"],
+        "qty": pd.array([3, 5], dtype="Int64"),
+        "price": pd.array([45000, 2500], dtype="Int64"),
+    })
+    result = avg_receipt_by_region(df)
+    assert len(result) == 1
+    assert result.loc[0, "region"] == "msk"
+    assert result.loc[0, "avg_receipt"] == (3*45000 + 5*2500) / 2
+
+def test_avg_receipt_by_region_empty_input() -> None:
+    df = pd.DataFrame(columns=["region", "qty", "price"])
+    result = avg_receipt_by_region(df)
+    assert result.empty
+    assert list(result.columns) == ["region", "avg_receipt"]
+```
+
+```file:test_mod_07_report.py
+import pandas as pd
+from mod_07_report import format_report
+
+def test_format_report() -> None:
+    rev_cat = pd.DataFrame({"category": ["electronics"], "revenue": [317000]})
+    rev_month = pd.DataFrame({"month": ["2026-01"], "revenue": [3000]})
+    top3 = pd.DataFrame({"product": ["B"], "category": ["cat"], "revenue": [3000]})
+    avg_rec = pd.DataFrame({"region": ["msk"], "avg_receipt": [73750.0]})
+    excluded = 2
+
+    report = format_report(rev_cat, rev_month, top3, avg_rec, excluded)
+    assert "Выручка по категориям" in report
+    assert "Выручка по месяцам" in report
+    assert "Топ-3 продукта" in report
+    assert "Средний чек по регионам" in report
+    assert "Исключено строк с пропусками: 2" in report
+    assert "electronics" in report
+    assert "317000" in report
+```

@@ -1,0 +1,255 @@
+```file:main.py
+import sys
+import pandas as pd
+from mod_01_discarded import count_discarded
+from mod_02_category_revenue import revenue_by_category
+from mod_03_monthly_revenue import revenue_by_month
+from mod_04_top_products import top_products
+from mod_05_avg_receipt import avg_receipt_by_region
+
+def main() -> None:
+    if len(sys.argv) != 2:
+        print("Usage: python main.py <path_to_csv>")
+        sys.exit(1)
+    path = sys.argv[1]
+    df = pd.read_csv(path, parse_dates=["date"], dtype={"qty": "Int64", "price": "Int64"})
+    
+    # MOD-01
+    discarded = count_discarded(df)
+    print(f"Исключено строк из-за пропусков: {discarded}\n")
+    
+    # MOD-02
+    cat_rev = revenue_by_category(df)
+    print("Выручка по категориям:")
+    print(cat_rev.to_string(index=False))
+    print()
+    
+    # MOD-03
+    month_rev = revenue_by_month(df)
+    print("Выручка по месяцам:")
+    print(month_rev.to_string(index=False))
+    print()
+    
+    # MOD-04
+    top = top_products(df)
+    print("Топ-3 продукта по выручке:")
+    print(top.to_string(index=False))
+    print()
+    
+    # MOD-05
+    region_avg = avg_receipt_by_region(df)
+    print("Средний чек по регионам:")
+    print(region_avg.to_string(index=False))
+
+if __name__ == "__main__":
+    main()
+```
+
+```file:mod_01_discarded.py
+import pandas as pd
+
+def count_discarded(df: pd.DataFrame) -> int:
+    """Количество строк с пропущенными значениями qty или price."""
+    if df.empty:
+        return 0
+    discarded = df["qty"].isna() | df["price"].isna()
+    return int(discarded.sum())
+```
+
+```file:mod_02_category_revenue.py
+import pandas as pd
+
+def revenue_by_category(df: pd.DataFrame) -> pd.DataFrame:
+    """Выручка по категориям. Строки с null в qty/price отбрасываются."""
+    if df.empty:
+        return pd.DataFrame(columns=["category", "revenue"])
+    clean = df.dropna(subset=["qty", "price"]).copy()
+    if clean.empty:
+        return pd.DataFrame(columns=["category", "revenue"])
+    clean["revenue"] = clean["qty"] * clean["price"]
+    result = clean.groupby("category", as_index=False).agg(revenue=("revenue", "sum"))
+    return result
+```
+
+```file:mod_03_monthly_revenue.py
+import pandas as pd
+
+def revenue_by_month(df: pd.DataFrame) -> pd.DataFrame:
+    """Выручка по месяцам (YYYY-MM). Строки с пропусками исключаются."""
+    if df.empty:
+        return pd.DataFrame(columns=["month", "revenue"])
+    clean = df.dropna(subset=["qty", "price"]).copy()
+    if clean.empty:
+        return pd.DataFrame(columns=["month", "revenue"])
+    clean["month"] = clean["date"].dt.strftime("%Y-%m")
+    clean["revenue"] = clean["qty"] * clean["price"]
+    result = clean.groupby("month", as_index=False).agg(revenue=("revenue", "sum"))
+    result = result.sort_values("month")
+    return result
+```
+
+```file:mod_04_top_products.py
+import pandas as pd
+
+def top_products(df: pd.DataFrame) -> pd.DataFrame:
+    """Топ-3 продукта по выручке. Пропуски отбрасываются."""
+    if df.empty:
+        return pd.DataFrame(columns=["product", "revenue"])
+    clean = df.dropna(subset=["qty", "price"]).copy()
+    if clean.empty:
+        return pd.DataFrame(columns=["product", "revenue"])
+    clean["revenue"] = clean["qty"] * clean["price"]
+    grouped = clean.groupby("product", as_index=False)["revenue"].sum()
+    grouped = grouped.sort_values("revenue", ascending=False).head(3)
+    return grouped
+```
+
+```file:mod_05_avg_receipt.py
+import pandas as pd
+
+def avg_receipt_by_region(df: pd.DataFrame) -> pd.DataFrame:
+    """Средний чек по регионам. Пропуски в qty/price исключаются."""
+    if df.empty:
+        return pd.DataFrame(columns=["region", "avg_receipt"])
+    clean = df.dropna(subset=["qty", "price"]).copy()
+    if clean.empty:
+        return pd.DataFrame(columns=["region", "avg_receipt"])
+    clean["revenue"] = clean["qty"] * clean["price"]
+    agg = clean.groupby("region").agg(
+        total_revenue=("revenue", "sum"),
+        transaction_count=("revenue", "size")
+    ).reset_index()
+    agg["avg_receipt"] = (agg["total_revenue"] / agg["transaction_count"]).round(2)
+    return agg[["region", "avg_receipt"]]
+```
+
+```file:test_mod_01.py
+import pandas as pd
+from mod_01_discarded import count_discarded
+
+def test_happy_path() -> None:
+    df = pd.DataFrame({
+        "qty": [10, None, 5, 2],
+        "price": [100, 200, None, 300]
+    })
+    assert count_discarded(df) == 2
+
+def test_empty_input() -> None:
+    df = pd.DataFrame(columns=["qty", "price"])
+    assert count_discarded(df) == 0
+```
+
+```file:test_mod_02.py
+import pandas as pd
+from mod_02_category_revenue import revenue_by_category
+
+def test_happy_path() -> None:
+    df = pd.DataFrame({
+        "category": ["a", "a", "b", "b"],
+        "qty": [1, 2, 3, 4],
+        "price": [10, 10, 5, 5]
+    })
+    result = revenue_by_category(df)
+    expected = pd.DataFrame({
+        "category": ["a", "b"],
+        "revenue": [30, 35]   # (1*10+2*10)=30, (3*5+4*5)=35
+    })
+    pd.testing.assert_frame_equal(result.reset_index(drop=True), expected)
+
+def test_empty_after_filter() -> None:
+    df = pd.DataFrame({
+        "category": ["a", "b"],
+        "qty": [None, 1],
+        "price": [100, None]
+    })
+    result = revenue_by_category(df)
+    assert result.empty
+    assert list(result.columns) == ["category", "revenue"]
+```
+
+```file:test_mod_03.py
+import pandas as pd
+from mod_03_monthly_revenue import revenue_by_month
+
+def test_happy_path() -> None:
+    df = pd.DataFrame({
+        "date": pd.to_datetime(["2025-01-15", "2025-01-20", "2025-02-10"]),
+        "qty": [2, 3, 1],
+        "price": [10, 10, 20]
+    })
+    result = revenue_by_month(df)
+    expected = pd.DataFrame({
+        "month": ["2025-01", "2025-02"],
+        "revenue": [50, 20]   # Jan: 2*10+3*10=50, Feb: 1*20=20
+    })
+    pd.testing.assert_frame_equal(result.reset_index(drop=True), expected, check_dtype=False)
+
+def test_empty_after_filter() -> None:
+    df = pd.DataFrame({
+        "date": pd.to_datetime(["2025-01-01"]),
+        "qty": [None],
+        "price": [100]
+    })
+    result = revenue_by_month(df)
+    assert result.empty
+    assert list(result.columns) == ["month", "revenue"]
+```
+
+```file:test_mod_04.py
+import pandas as pd
+from mod_04_top_products import top_products
+
+def test_happy_path() -> None:
+    df = pd.DataFrame({
+        "product": ["p1", "p2", "p3", "p1", "p4"],
+        "qty": [1, 2, 3, 1, 10],
+        "price": [100, 50, 20, 100, 5]
+    })
+    result = top_products(df)
+    # revenues: p1=200, p2=100, p3=60, p4=50 → top3: p1, p2, p3
+    expected = pd.DataFrame({
+        "product": ["p1", "p2", "p3"],
+        "revenue": [200, 100, 60]
+    })
+    pd.testing.assert_frame_equal(result.reset_index(drop=True), expected)
+
+def test_less_than_three_products() -> None:
+    df = pd.DataFrame({
+        "product": ["x", "y", "x"],
+        "qty": [1, 2, 1],
+        "price": [10, 20, 10]
+    })
+    result = top_products(df)
+    # revenues: x=20, y=40 → только два продукта
+    assert len(result) == 2
+    assert set(result["product"]) == {"x", "y"}
+```
+
+```file:test_mod_05.py
+import pandas as pd
+from mod_05_avg_receipt import avg_receipt_by_region
+
+def test_happy_path() -> None:
+    df = pd.DataFrame({
+        "region": ["msk", "msk", "spb"],
+        "qty": [2, 3, 1],
+        "price": [100, 200, 500]
+    })
+    result = avg_receipt_by_region(df)
+    # msk: (200+600)/2 = 400.0, spb: 500/1 = 500.0
+    expected = pd.DataFrame({
+        "region": ["msk", "spb"],
+        "avg_receipt": [400.0, 500.0]
+    })
+    pd.testing.assert_frame_equal(result.reset_index(drop=True), expected, check_exact=False, atol=0.01)
+
+def test_empty_after_filter() -> None:
+    df = pd.DataFrame({
+        "region": ["a"],
+        "qty": [None],
+        "price": [10]
+    })
+    result = avg_receipt_by_region(df)
+    assert result.empty
+    assert list(result.columns) == ["region", "avg_receipt"]
+```

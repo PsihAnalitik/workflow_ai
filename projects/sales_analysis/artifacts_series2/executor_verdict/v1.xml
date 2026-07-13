@@ -1,0 +1,11 @@
+<verdict derived_from="analysis_spec.xml@1.1, executor@1.0">
+  <coverage>
+    <fr id="FR-01" status="covered" module="mod_02_category_revenue.py/revenue_by_category" test="test_mod_02.py::test_happy_path"/>
+    <fr id="FR-02" status="covered" module="mod_03_monthly_revenue.py/revenue_by_month" test="test_mod_03.py::test_happy_path"/>
+    <fr id="FR-03" status="covered" module="mod_04_top_products.py/top_products" test="test_mod_04.py::test_happy_path"/>
+    <fr id="FR-04" status="covered" module="mod_05_avg_receipt.py/avg_receipt_by_region" test="test_mod_05.py::test_happy_path"/>
+    <fr id="FR-05" status="covered" module="mod_01_discarded.py/count_discarded" test="test_mod_01.py::test_happy_path"/>
+  </coverage>
+  <decision>READY</decision>
+  <reasons>Все требования приоритета must реализованы и протестированы. Стек технологий не нарушен.</reasons>
+</verdict>

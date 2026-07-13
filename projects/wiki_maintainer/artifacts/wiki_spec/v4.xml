@@ -1,0 +1,55 @@
+<wiki_change derived_from="input@v1">
+  <source_request>Обнови страницу wiki methodology/workshop-cli.md: добавь раздел про MCP-интеграцию (FR-23), сохранив текущее содержимое. Это action=update существующей страницы.
+
+Текущее содержимое страницы (основа, сохрани структуру и команды, дополни):
+---
+# wiki: workshop-cli (v1)
+
+CLI фабрики цеха: `python -m workshop`. Запуск без подкоманды открывает интерактивное меню: запуск цеха, статус проектов, выход.
+
+## Команды
+
+- **shops** — реестр цехов: сканирует `configs/*/graph.json`, выводит стадии с гейтами (review/judge/hitl), project и наличие autopilot-графа.
+- **run** `<имя-цеха или путь к graph.json>` `<вход: текст или путь к файлу>` — запуск конвейера. Флаги:
+  - `--autopilot` — использовать `graph.autopilot.json` цеха.
+  - `--resume` — пропустить узлы с принятыми артефактами в сторе.
+  - `--store DIR` — директория стора.
+  - `--log FILE` — файл журнала.
+  - `--project X` — идентификатор проекта.
+- **status** `[--project X]` — сводка по `projects/*`: версии артефактов, итерации из журнала.
+- **verify-acceptance** `<каталог цеха или CHANGELOG.md>` — механическая сверка sha256 файлов с приёмочными записями (FR-17); маркер `removed` снимает путь с проверки.
+- **extract** `<артефакт>` `<каталог>` — распаковка file map в файлы.
+- **package** `<graph.json>` — детерминированная сборка пакета проекта: код + git + frozen deps + README (FR-13).
+- **assemble** `<product.json>` — сборка продукта из сервисов-пакетов с общим docker-compose (FR-14).
+- **decompose** `<graph.json>` — порождение подмодулей-проектов из принятого `domains.xml` (FR-15).
+- **wiki-check** `[--wiki DIR]` — проверка wiki: index.md в каждой директории, битые ссылки, страницы-сироты вне индексов, линт на отсутствие двойных фигурных скобок (в текстах запрет упоминается словами, литералы скобок не допускаются).
+- **wiki-render** `[--wiki DIR --out DIR]` — статическая HTML-витрина (диаграммы Mermaid рендерятся на стороне клиента).
+- **wiki-apply** `<артефакт wiki_pages>` `[--wiki DIR]` — применение file map к wiki: валидация путей, полный `wiki-check` на временной копии, атомарная запись.
+
+## HITL при run
+
+При выполнении цеха в интерактивном режиме:
+- Отчёты гейтов выводятся перед артефактом.
+- Решения: `a` — принять, `r` — запросить правки, `x` — отклонить.
+- Вопросы `NEEDS_CLARIFICATION` задаются в терминале.
+
+related: [методология цеха](index.md), [GRACE](grace.md)
+
+---
+
+Новый материал (проверенный, из кода) для дополнения:
+1) Новая подкоманда CLI: mcp-serve — MCP-сервер фабрики поверх stdio (FR-23); секреты (.env, ключи LLM) остаются в процессе сервера.
+2) Подключение к Claude Code (из корня фабрики, local scope): claude mcp add agent-workshop -- <путь-к-venv>/python -m workshop mcp-serve
+3) Инструменты MCP (12): list_shops — реестр цехов; run_shop(shop, input_material, mode, project) — асинхронный запуск, возвращает run_id; input_material — текст или путь к файлу внутри фабрики (скрытые файлы запрещены); run_status(run_id) — running с текущим узлом и итерацией | awaiting_decision | awaiting_answer | done с артефактами | rejected с причиной (отклонение пользователем — не сбой) | failed; get_pending_interaction(run_id) — отчёты гейта и артефакт либо вопрос мастерской; submit_decision(run_id, decision, text) — accept | revise | reject | answer; list_artifacts(project) и get_artifact(project, name, version) — чтение стора; get_project_status(project); verify_acceptance_tool(target) — цех по имени или wiki; wiki_update(request, material) — прогон цеха wiki_maintainer с авто-применением и записью в wiki/CHANGELOG.md, синхронный; wiki_read(ref); wiki_check().
+4) Дистанционный HITL: пара get_pending_interaction / submit_decision — прогон ждёт решения без таймаута; не более одного живого прогона на project.</source_request>
+  <summary>Добавление раздела MCP-интеграции (FR-23) на страницу workshop-cli с новой подкомандой mcp-serve, описанием 12 инструментов и дистанционного HITL.</summary>
+  <pages>
+    <page path="methodology/workshop-cli.md" action="update" unverified="false">
+      <purpose>Дополнить страницу разделом MCP-интеграция: подкоманда mcp-serve, подключение к Claude Code, 12 инструментов, дистанционный HITL; сохранить всё текущее содержимое</purpose>
+      <index_row>—</index_row>
+      <related>methodology/index.md, methodology/grace.md</related>
+    </page>
+  </pages>
+  <index_updates>
+  </index_updates>
+</wiki_change>

@@ -1,0 +1,25 @@
+{
+  "product": "text_searcher",
+  "services": [
+    {
+      "name": "matching",
+      "package": "projects/text_searcher-matching/package"
+    },
+    {
+      "name": "lemmatization",
+      "package": "projects/text_searcher-lemmatization/package"
+    },
+    {
+      "name": "stemsearch",
+      "package": "projects/text_searcher-stemsearch/package",
+      "env": {
+        "LEMMATIZATION_URL": "http://lemmatization:8000",
+        "MATCHING_URL": "http://matching:8000"
+      },
+      "depends_on": [
+        "lemmatization",
+        "matching"
+      ]
+    }
+  ]
+}

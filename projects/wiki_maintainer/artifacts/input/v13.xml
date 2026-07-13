@@ -1,0 +1,32 @@
+Документация библиотеки fastapi, часть 2 из 2 (повтор после сбоя генерации). ПЯТЬ файлов в file map, из них два — дословные копии (нужны только чтобы все цели ссылок были в file map). Копии — это уже ПРИНЯТЫЕ verified-страницы: пометку unverified на них НЕ ставить, содержимое не менять ни на символ.
+
+1) Добавь python/fastapi/dependencies.md (action=add, материал есть — verified): сценарий «зависимости» — Depends с Annotated (официальная форма), переиспользуемый type alias, подмена в тестах через app.dependency_overrides с обязательным сбросом; negative: Depends(func()) — вызов вместо передачи функции; незачищенные overrides утекают между тестами. related: index.md и testing.md.
+
+2) Обнови python/fastapi/testing.md (action=update): привяжи к версии fastapi 0.139.0; добавь: TestClient требует установленный httpx; тестовые функции — обычные def (не async), вызовы без await; данные через json=/headers=/cookies=; подмена зависимостей — ссылка на [dependencies.md](dependencies.md). Существующие разделы и GOOD/BAD примеры дословно; в конец — секция related (index.md, dependencies.md).
+
+3) Обнови python/fastapi/index.md (action=update): добавь ОДНУ строку каталога про dependencies.md. Все существующие строки каталога (testing.md, validation.md, errors.md), секцию related и остальное — дословно.
+
+4) Обнови python/fastapi/validation.md (action=update): дословная копия текущего текста, без изменений и без пометок.
+
+5) Обнови python/fastapi/errors.md (action=update): дословная копия текущего текста, без изменений и без пометок.
+
+В КАЖДОЙ ревизии возвращай ПОЛНЫЙ file map — все пять файлов.
+Материал: Проверено 2026-07-10, только официальные источники (fastapi.tiangolo.com: tutorial/dependencies, tutorial/testing, advanced/testing-dependencies; pypi.org/project/fastapi). Материал покрывает страницы dependencies.md и testing.md; страницы validation.md и errors.md в этом прогоне не меняются (дословные копии принятых страниц).
+
+ВЕРСИЯ: fastapi 0.139.0 (PyPI, 01.07.2026; Python >=3.10, Pydantic 2).
+
+ЗАВИСИМОСТИ (tutorial/dependencies):
+- Официальная форма — Annotated: def read_items(commons: Annotated[dict, Depends(common_parameters)]). Зависимость — обычная функция (def или async def) с теми же видами параметров, что у обработчиков (query/path/body).
+- Переиспользование: CommonsDep = Annotated[dict, Depends(common_parameters)] — один источник истины, сохраняется автодополнение и проверка типов.
+- В Depends() передаётся сама функция, НЕ её вызов: Depends(common_parameters), не Depends(common_parameters()).
+- Валидации зависимостей автоматически попадают в OpenAPI-схему.
+
+ТЕСТЫ (tutorial/testing, advanced/testing-dependencies):
+- TestClient требует установленный httpx; импорт from fastapi.testclient import TestClient; клиент основан на HTTPX.
+- Тестовые функции — обычные def (не async), вызовы клиента — без await; pytest-конвенция имён test_*.
+- Передача данных: client.post(url, json=..., headers=..., cookies=...).
+- Подмена зависимостей: app.dependency_overrides[common_parameters] = override_dependency — ключ это исходная функция, значение это подменная; работает для зависимостей в обработчиках, декораторах и роутерах.
+- После теста обязательный сброс: app.dependency_overrides.clear() — иначе подмена утечёт в соседние тесты.
+- Типовое применение: мок внешнего сервиса, фиксированные тестовые данные.
+
+ИСТОЧНИКИ: https://fastapi.tiangolo.com/tutorial/dependencies/ ; https://fastapi.tiangolo.com/tutorial/testing/ ; https://fastapi.tiangolo.com/advanced/testing-dependencies/ ; https://pypi.org/project/fastapi/

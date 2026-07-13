@@ -1,0 +1,5 @@
+{
+  "base_prompt_path": "configs/table_validator/prompts/table_check_review.base.md",
+  "stage_map_path": "configs/table_validator/prompts/empty.stage.md",
+  "llm_profile": "default"
+}

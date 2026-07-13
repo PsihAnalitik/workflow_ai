@@ -1,0 +1,38 @@
+{
+  "project": "sales_analysis",
+  "llm_profiles_path": "configs/data_analyst/models.json",
+  "package": {
+    "code_node": "executor",
+    "image": "workshop-python:latest"
+  },
+  "nodes": [
+    {
+      "id": "task_spec",
+      "config_path": "configs/data_analyst/nodes/task_spec.json",
+      "gates": {
+        "review_config_path": "configs/data_analyst/nodes/task_spec_review.json",
+        "hitl": true
+      }
+    },
+    {
+      "id": "tech_selection",
+      "config_path": "configs/data_analyst/nodes/tech_selection.json",
+      "gates": {"hitl": true}
+    },
+    {
+      "id": "executor",
+      "config_path": "configs/data_analyst/nodes/executor.json",
+      "kind": "codegen",
+      "image": "workshop-python:latest",
+      "gates": {
+        "judge_config_path": "configs/data_analyst/nodes/judge.json",
+        "hitl": true
+      }
+    }
+  ],
+  "edges": [
+    {"from": "task_spec", "to": "tech_selection"},
+    {"from": "task_spec", "to": "executor"},
+    {"from": "tech_selection", "to": "executor"}
+  ]
+}

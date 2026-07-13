@@ -1,0 +1,8 @@
+{
+  "base_prompt_path": "configs/llm_wiki/prompts/wiki_spec.base.md",
+  "stage_map_path": "configs/llm_wiki/prompts/empty.stage.md",
+  "wiki_refs": [{"path": "projects/llm_wiki/wiki/index.md", "version": "v1"}],
+  "wiki_tree_root": "projects/llm_wiki/wiki",
+  "tools": ["material_search", "material_get", "web_search"],
+  "llm_profile": "default"
+}

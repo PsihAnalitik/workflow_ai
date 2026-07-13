@@ -1,0 +1,38 @@
+<wiki_change derived_from="input@1.3">
+  <source_request>Метаданные fastapi: ссылка на документацию. ПЯТЬ файлов, все action=update. Четыре из них — дословные копии без изменений (нужны, чтобы цели ссылок каталога были в file map): это уже принятые verified-страницы, пометку unverified НЕ ставить, не менять ни символа.
+
+1) python/fastapi/index.md: после строки со стабильной версией добавь строку «Документация: https://fastapi.tiangolo.com/». Всё остальное — дословно.
+2) python/fastapi/testing.md: дословная копия текущего текста.
+3) python/fastapi/validation.md: дословная копия текущего текста.
+4) python/fastapi/errors.md: дословная копия текущего текста.
+5) python/fastapi/dependencies.md: дословная копия текущего текста.
+
+В каждой ревизии возвращай ПОЛНЫЙ file map (все пять файлов).
+Материал: Официальный корень документации fastapi (проверено 2026-07-10, источник прошлых прогонов): https://fastapi.tiangolo.com/ — официальный сайт-документация FastAPI. Страницы testing.md, validation.md, errors.md, dependencies.md в этом прогоне не меняются (дословные копии принятых страниц).</source_request>
+  <summary>Обновление fastapi/index.md (ссылка на документацию) и дословное закрепление четырёх вспомогательных страниц без изменений.</summary>
+  <pages>
+    <page path="python/fastapi/index.md" action="update" unverified="false">
+      <purpose>добавить строку с официальной документацией после версии</purpose>
+      <related>python/index.md, python/fastapi/testing.md, python/fastapi/validation.md, python/fastapi/errors.md, python/fastapi/dependencies.md</related>
+    </page>
+    <page path="python/fastapi/testing.md" action="update" unverified="false">
+      <purpose>дословная копия существующей страницы (без изменений)</purpose>
+      <related>python/fastapi/index.md</related>
+    </page>
+    <page path="python/fastapi/validation.md" action="update" unverified="false">
+      <purpose>дословная копия существующей страницы (без изменений)</purpose>
+      <related>python/fastapi/index.md</related>
+    </page>
+    <page path="python/fastapi/errors.md" action="update" unverified="false">
+      <purpose>дословная копия существующей страницы (без изменений)</purpose>
+      <related>python/fastapi/index.md</related>
+    </page>
+    <page path="python/fastapi/dependencies.md" action="update" unverified="false">
+      <purpose>дословная копия существующей страницы (без изменений)</purpose>
+      <related>python/fastapi/index.md</related>
+    </page>
+  </pages>
+  <index_updates>
+    <!-- без изменений; строка fastapi в python/index.md уже существует -->
+  </index_updates>
+</wiki_change>

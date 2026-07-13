@@ -1,0 +1,8 @@
+{
+  "base_prompt_path": "configs/wiki_maintainer/prompts/wiki_spec.base.md",
+  "stage_map_path": "configs/wiki_maintainer/prompts/empty.stage.md",
+  "wiki_refs": [{"path": "wiki/index.md", "version": "v1"}, {"path": "wiki/python/index.md", "version": "v1"}, {"path": "wiki/agents/index.md", "version": "v1"}, {"path": "wiki/methodology/index.md", "version": "v1"}, {"path": "wiki/domains/index.md", "version": "v1"}],
+  "wiki_tree_root": "wiki",
+  "tools": ["web_search", "wiki_search", "wiki_get"],
+  "llm_profile": "default"
+}

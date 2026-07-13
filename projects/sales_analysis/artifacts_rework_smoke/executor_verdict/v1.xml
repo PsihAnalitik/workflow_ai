@@ -1,0 +1,11 @@
+<verdict derived_from="analysis_spec.xml@1.0, executor@1.0">
+  <coverage>
+    <fr id="FR-01" status="covered" module="mod_02_category_revenue.category_revenue" test="test_mod_02_category_revenue.test_category_revenue_happy_path"/>
+    <fr id="FR-02" status="covered" module="mod_03_monthly_revenue.monthly_revenue" test="test_mod_03_monthly_revenue.test_monthly_revenue_happy_path"/>
+    <fr id="FR-03" status="covered" module="mod_04_top3_products.top3_products" test="test_mod_04_top3_products.test_top3_products_happy_path"/>
+    <fr id="FR-04" status="covered" module="mod_05_avg_check_region.avg_check_by_region" test="test_mod_05_avg_check_region.test_avg_check_happy_path"/>
+    <fr id="FR-05" status="covered" module="mod_06_discard_count.discarded_count" test="test_mod_06_discard_count.test_discarded_happy_path"/>
+  </coverage>
+  <decision>READY</decision>
+  <reasons></reasons>
+</verdict>

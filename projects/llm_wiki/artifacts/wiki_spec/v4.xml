@@ -1,0 +1,21 @@
+<wiki_change derived_from="input@v1">
+  <summary>MCP-сервер agent-workshop (12 инструментов, HITL-протокол, безопасность, интеграция с Claude Code) и механика динамических wiki_refs для автоматической подстановки страниц в контекст цеха</summary>
+  <pages>
+    <page path="agent-workshop/mcp-server.md" action="add" unverified="false">
+      <purpose>MCP-сервер фабрики: 12 инструментов (list_shops, run_shop, run_status, get_pending_interaction, submit_decision, wiki_read, project_status и др.), асинхронный run_shop с HITL-гейтами, безопасность WIKI_REF_ESCAPES_ROOT, статусы включая rejected и прогресс узла, подключение к Claude Code через claude mcp add, сквозной сценарий дистанционного HITL</purpose>
+      <source_chunks>inline</source_chunks>
+      <index_row>| [mcp-server](mcp-server.md) | MCP-сервер: инструменты, HITL, безопасность, Claude Code |</index_row>
+      <related>agent-workshop/index.md, agent-workshop/smoke-test.md</related>
+    </page>
+    <page path="agent-workshop/dynamic-wiki-refs.md" action="add" unverified="false">
+      <purpose>динамические wiki_refs для wiki_pages: обобщённый парсер parse_wiki_refs_source (tech_stack + wiki_change), Union вместо XOR между статическими и динамическими ссылками, автоматическая подстановка актуальных страниц в контекст генератора и ревьюера без передачи текста в запросе</purpose>
+      <source_chunks>inline</source_chunks>
+      <index_row>| [dynamic-wiki-refs](dynamic-wiki-refs.md) | динамические wiki_refs: авто-подстановка страниц в контекст |</index_row>
+      <related>agent-workshop/index.md</related>
+    </page>
+  </pages>
+  <index_updates>
+    <index path="agent-workshop/index.md">добавить строки: mcp-server, dynamic-wiki-refs</index>
+  </index_updates>
+  <backlog>methodology/workshop-cli.md (обновление v5 из чата) — вне текущего дерева вики, требует создания области methodology; открытые задачи сессии (HITL-переподтверждение приёмок, риск таймаута синхронного wiki_update в MCP) — потенциальные страницы области agent-workshop</backlog>
+</wiki_change>

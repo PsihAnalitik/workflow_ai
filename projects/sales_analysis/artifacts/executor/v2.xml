@@ -1,0 +1,414 @@
+```file:avg_receipt_by_region.py
+import pandas as pd
+
+def avg_receipt_by_region(cleaned_rows: pd.DataFrame) -> pd.DataFrame:
+    """
+    Рассчитывает средний чек по регионам: общая выручка / количество транзакций в регионе.
+    При пустом входе или отсутствии обязательных колонок возвращает пустой DataFrame
+    с колонками [region, avg_receipt].
+    """
+    if not isinstance(cleaned_rows, pd.DataFrame):
+        return pd.DataFrame(columns=["region", "avg_receipt"])
+
+    required = {"region", "qty", "price"}
+    if not required.issubset(cleaned_rows.columns):
+        return pd.DataFrame(columns=["region", "avg_receipt"])
+
+    if cleaned_rows.empty:
+        return pd.DataFrame(columns=["region", "avg_receipt"])
+
+    df = cleaned_rows.copy()
+    df["revenue"] = df["qty"] * df["price"]
+    agg = (
+        df.groupby("region")
+        .agg(
+            total_revenue=("revenue", "sum"),
+            transaction_count=("region", "count")
+        )
+        .reset_index()
+    )
+    agg["avg_receipt"] = agg["total_revenue"] / agg["transaction_count"]
+    return agg[["region", "avg_receipt"]]
+```
+
+```file:data_cleaning.py
+import pandas as pd
+
+def clean_data(raw_rows: pd.DataFrame) -> tuple[pd.DataFrame, int]:
+    """
+    Фильтрует строки с отсутствующими значениями qty или price, подсчитывает количество отброшенных записей.
+
+    Возвращает:
+        cleaned_rows: DataFrame без строк, где qty или price отсутствуют.
+        discarded_count: количество исключённых строк.
+    Если вход не является DataFrame или отсутствуют ключевые колонки, все строки считаются
+    с пропусками, и cleaned_rows будет пустым (с исходными колонками).
+    """
+    if not isinstance(raw_rows, pd.DataFrame):
+        # Неверный тип входа — считаем, что данных нет
+        return (pd.DataFrame(), 0)
+
+    if "qty" not in raw_rows.columns or "price" not in raw_rows.columns:
+        # Нет необходимых колонок — все строки рассматриваются как с пропусками
+        cleaned = pd.DataFrame(columns=raw_rows.columns)
+        return (cleaned, len(raw_rows))
+
+    total = len(raw_rows)
+    # Удаляем строки, где qty или price равны NaN
+    cleaned = raw_rows.dropna(subset=["qty", "price"]).reset_index(drop=True)
+    discarded = total - len(cleaned)
+    return (cleaned, discarded)
+```
+
+```file:main.py
+import sys
+import pandas as pd
+from data_cleaning import clean_data
+from revenue_by_category import revenue_by_category
+from revenue_by_month import revenue_by_month
+from top3_products import top3_products
+from avg_receipt_by_region import avg_receipt_by_region
+
+def main():
+    if len(sys.argv) != 2:
+        print("Usage: python main.py <path_to_csv>")
+        sys.exit(1)
+
+    path = sys.argv[1]
+    try:
+        raw = pd.read_csv(path, parse_dates=["date"], dtype={"qty": "Int64", "price": "Int64"})
+    except Exception as e:
+        print(f"Ошибка при чтении файла: {e}")
+        sys.exit(1)
+
+    cleaned, discarded = clean_data(raw)
+    print(f"Количество исключённых записей (пропуски в qty/price): {discarded}")
+    print()
+
+    print("=== Выручка по категориям ===")
+    cat_rev = revenue_by_category(cleaned)
+    if cat_rev.empty:
+        print("Нет данных для расчёта.")
+    else:
+        print(cat_rev.to_string(index=False))
+    print()
+
+    print("=== Выручка по месяцам ===")
+    month_rev = revenue_by_month(cleaned)
+    if month_rev.empty:
+        print("Нет данных для расчёта.")
+    else:
+        print(month_rev.to_string(index=False))
+    print()
+
+    print("=== Топ-3 продукта по выручке ===")
+    top3 = top3_products(cleaned)
+    if top3.empty:
+        print("Нет данных для расчёта.")
+    else:
+        print(top3.to_string(index=False))
+    print()
+
+    print("=== Средний чек по регионам ===")
+    region_receipt = avg_receipt_by_region(cleaned)
+    if region_receipt.empty:
+        print("Нет данных для расчёта.")
+    else:
+        print(region_receipt.to_string(index=False))
+
+if __name__ == "__main__":
+    main()
+```
+
+```file:revenue_by_category.py
+import pandas as pd
+
+def revenue_by_category(cleaned_rows: pd.DataFrame) -> pd.DataFrame:
+    """
+    Группирует по category и возвращает суммарную выручку (qty*price).
+
+    Ожидаются колонки: category, qty, price.
+    Если вход пустой или отсутствуют обязательные колонки, возвращает пустой DataFrame
+    с колонками [category, revenue].
+    """
+    if not isinstance(cleaned_rows, pd.DataFrame):
+        return pd.DataFrame(columns=["category", "revenue"])
+
+    required = {"category", "qty", "price"}
+    if not required.issubset(cleaned_rows.columns):
+        return pd.DataFrame(columns=["category", "revenue"])
+
+    if cleaned_rows.empty:
+        return pd.DataFrame(columns=["category", "revenue"])
+
+    df = cleaned_rows.copy()
+    df["revenue"] = df["qty"] * df["price"]
+    result = df.groupby("category", as_index=False).agg(revenue=("revenue", "sum"))
+    return result[["category", "revenue"]]
+```
+
+```file:revenue_by_month.py
+import pandas as pd
+
+def revenue_by_month(cleaned_rows: pd.DataFrame) -> pd.DataFrame:
+    """
+    Извлекает месяц из date ('YYYY-MM') и группирует по месяцу, вычисляя суммарную выручку.
+
+    Требуются колонки: date, qty, price.
+    При пустом входе или отсутствии колонок возвращает пустой DataFrame с [month, revenue].
+    """
+    if not isinstance(cleaned_rows, pd.DataFrame):
+        return pd.DataFrame(columns=["month", "revenue"])
+
+    required = {"date", "qty", "price"}
+    if not required.issubset(cleaned_rows.columns):
+        return pd.DataFrame(columns=["month", "revenue"])
+
+    if cleaned_rows.empty:
+        return pd.DataFrame(columns=["month", "revenue"])
+
+    df = cleaned_rows.copy()
+    df["date"] = pd.to_datetime(df["date"])
+    df["month"] = df["date"].dt.strftime("%Y-%m")
+    df["revenue"] = df["qty"] * df["price"]
+    result = df.groupby("month", as_index=False).agg(revenue=("revenue", "sum"))
+    return result[["month", "revenue"]]
+```
+
+```file:test_avg_receipt_by_region.py
+import pandas as pd
+from avg_receipt_by_region import avg_receipt_by_region
+
+def test_avg_receipt_by_region_happy():
+    df = pd.DataFrame({
+        "region": ["msk", "msk", "spb", "spb"],
+        "qty": [2, 1, 1, 3],
+        "price": [100, 200, 300, 50],
+    })
+    result = avg_receipt_by_region(df)
+    assert len(result) == 2
+    msk_row = result[result["region"] == "msk"]
+    spb_row = result[result["region"] == "spb"]
+    # msk: total = 2*100 + 1*200 = 400, transactions = 2, avg = 200.0
+    assert msk_row["avg_receipt"].iloc[0] == 200.0
+    # spb: total = 1*300 + 3*50 = 450, transactions = 2, avg = 225.0
+    assert spb_row["avg_receipt"].iloc[0] == 225.0
+
+def test_avg_receipt_by_region_single_transaction():
+    df = pd.DataFrame({
+        "region": ["ekb"],
+        "qty": [5],
+        "price": [10],
+    })
+    result = avg_receipt_by_region(df)
+    assert len(result) == 1
+    assert result.iloc[0]["avg_receipt"] == 50.0
+
+def test_avg_receipt_by_region_empty():
+    df = pd.DataFrame(columns=["region", "qty", "price"])
+    result = avg_receipt_by_region(df)
+    assert result.empty
+    assert list(result.columns) == ["region", "avg_receipt"]
+
+def test_avg_receipt_by_region_missing_columns():
+    df = pd.DataFrame({"region": ["a"], "qty": [1]})  # нет price
+    result = avg_receipt_by_region(df)
+    assert result.empty
+```
+
+```file:test_data_cleaning.py
+import pandas as pd
+from data_cleaning import clean_data
+
+def test_clean_data_happy_path():
+    df = pd.DataFrame({
+        "date": ["2026-01-01", "2026-01-02"],
+        "category": ["a", "b"],
+        "product": ["x", "y"],
+        "qty": [1, 2],
+        "price": [10, 20],
+        "region": ["msk", "spb"]
+    })
+    cleaned, discarded = clean_data(df)
+    assert discarded == 0
+    assert len(cleaned) == 2
+    assert "qty" in cleaned.columns
+    assert not cleaned["qty"].isna().any()
+
+def test_clean_data_missing_values():
+    df = pd.DataFrame({
+        "date": ["2026-01-01", "2026-01-02", "2026-01-03"],
+        "category": ["a", "b", "c"],
+        "product": ["x", "y", "z"],
+        "qty": [1, None, 3],
+        "price": [10, 20, None],
+        "region": ["msk", "spb", "ekb"]
+    })
+    cleaned, discarded = clean_data(df)
+    # Вторая строка: qty=None, третья: price=None → обе удалены
+    assert discarded == 2
+    assert len(cleaned) == 1
+    assert cleaned.iloc[0]["qty"] == 1
+    assert cleaned.iloc[0]["price"] == 10
+
+def test_clean_data_empty_input():
+    df = pd.DataFrame(columns=["date", "category", "product", "qty", "price", "region"])
+    cleaned, discarded = clean_data(df)
+    assert cleaned.empty
+    assert discarded == 0
+
+def test_clean_data_all_missing():
+    df = pd.DataFrame({
+        "date": ["2026-01-01", "2026-01-02"],
+        "category": ["a", "b"],
+        "product": ["x", "y"],
+        "qty": [None, None],
+        "price": [None, None],
+        "region": ["msk", "spb"]
+    })
+    cleaned, discarded = clean_data(df)
+    assert cleaned.empty
+    assert discarded == 2
+
+def test_clean_data_missing_columns():
+    # Нет колонок qty и price
+    df = pd.DataFrame({"date": ["2026-01-01"], "category": ["a"], "product": ["x"], "region": ["msk"]})
+    cleaned, discarded = clean_data(df)
+    assert cleaned.empty
+    assert discarded == 1
+```
+
+```file:test_revenue_by_category.py
+import pandas as pd
+from revenue_by_category import revenue_by_category
+
+def test_revenue_by_category_happy():
+    df = pd.DataFrame({
+        "date": ["2026-01-01"] * 4,
+        "category": ["electronics", "electronics", "home", "home"],
+        "product": ["phone_x1", "laptop_a3", "vacuum_v8", "mop"],
+        "qty": [2, 1, 1, 5],
+        "price": [100000, 92000, 18000, 2500],
+        "region": ["msk", "spb", "ekb", "msk"]
+    })
+    result = revenue_by_category(df)
+    assert not result.empty
+    elec = result[result["category"] == "electronics"]
+    home = result[result["category"] == "home"]
+    assert elec["revenue"].iloc[0] == 2*100000 + 1*92000
+    assert home["revenue"].iloc[0] == 1*18000 + 5*2500
+
+def test_revenue_by_category_empty():
+    df = pd.DataFrame(columns=["category", "qty", "price"])
+    result = revenue_by_category(df)
+    assert result.empty
+    assert list(result.columns) == ["category", "revenue"]
+
+def test_revenue_by_category_missing_cols():
+    df = pd.DataFrame({"category": ["a"], "qty": [1]})
+    result = revenue_by_category(df)
+    assert result.empty
+```
+
+```file:test_revenue_by_month.py
+import pandas as pd
+from revenue_by_month import revenue_by_month
+
+def test_revenue_by_month_happy():
+    df = pd.DataFrame({
+        "date": ["2026-01-15", "2026-02-10", "2026-01-20"],
+        "qty": [2, 1, 5],
+        "price": [100, 200, 50]
+    })
+    result = revenue_by_month(df)
+    assert len(result) == 2
+    jan = result[result["month"] == "2026-01"]
+    feb = result[result["month"] == "2026-02"]
+    assert jan["revenue"].iloc[0] == 2*100 + 5*50
+    assert feb["revenue"].iloc[0] == 1*200
+
+def test_revenue_by_month_empty():
+    df = pd.DataFrame(columns=["date", "qty", "price"])
+    result = revenue_by_month(df)
+    assert result.empty
+
+def test_revenue_by_month_missing_date():
+    df = pd.DataFrame({"qty": [1], "price": [10]})
+    result = revenue_by_month(df)
+    assert result.empty
+```
+
+```file:test_top3_products.py
+import pandas as pd
+from top3_products import top3_products
+
+def test_top3_products_happy():
+    df = pd.DataFrame({
+        "product": ["phone_x1", "laptop_a3", "vacuum_v8", "mop"],
+        "qty": [2, 1, 1, 5],
+        "price": [100000, 92000, 18000, 2500],
+    })
+    result = top3_products(df)
+    assert len(result) == 3
+    # top1: phone_x1 (200000), top2: laptop_a3 (92000), top3: vacuum_v8 (18000)
+    assert result.iloc[0]["product"] == "phone_x1"
+    assert result.iloc[0]["revenue"] == 200000
+    assert result.iloc[1]["product"] == "laptop_a3"
+    assert result.iloc[1]["revenue"] == 92000
+    assert result.iloc[2]["product"] == "vacuum_v8"
+    assert result.iloc[2]["revenue"] == 18000
+
+def test_top3_products_fewer_than_3():
+    df = pd.DataFrame({
+        "product": ["a", "b"],
+        "qty": [1, 2],
+        "price": [10, 5],
+    })
+    result = top3_products(df)
+    assert len(result) == 2
+    assert result.iloc[0]["product"] == "a"
+    assert result.iloc[0]["revenue"] == 10
+    assert result.iloc[1]["product"] == "b"
+    assert result.iloc[1]["revenue"] == 10
+
+def test_top3_products_empty():
+    df = pd.DataFrame(columns=["product", "qty", "price"])
+    result = top3_products(df)
+    assert result.empty
+    assert list(result.columns) == ["product", "revenue"]
+
+def test_top3_products_missing_columns():
+    df = pd.DataFrame({"product": ["a"], "qty": [1]})  # нет price
+    result = top3_products(df)
+    assert result.empty
+```
+
+```file:top3_products.py
+import pandas as pd
+
+def top3_products(cleaned_rows: pd.DataFrame) -> pd.DataFrame:
+    """
+    Возвращает до трёх продуктов с наибольшей суммарной выручкой (qty*price).
+    При пустом входе или отсутствии обязательных колонок возвращает пустой DataFrame
+    с колонками [product, revenue].
+    """
+    if not isinstance(cleaned_rows, pd.DataFrame):
+        return pd.DataFrame(columns=["product", "revenue"])
+
+    required = {"product", "qty", "price"}
+    if not required.issubset(cleaned_rows.columns):
+        return pd.DataFrame(columns=["product", "revenue"])
+
+    if cleaned_rows.empty:
+        return pd.DataFrame(columns=["product", "revenue"])
+
+    df = cleaned_rows.copy()
+    df["revenue"] = df["qty"] * df["price"]
+    result = (
+        df.groupby("product", as_index=False)
+        .agg(revenue=("revenue", "sum"))
+        .sort_values("revenue", ascending=False)
+        .head(3)
+    )
+    return result[["product", "revenue"]]
+```

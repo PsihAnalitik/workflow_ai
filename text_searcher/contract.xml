@@ -1,0 +1,69 @@
+<contract id="C-text-search" module="text_search" version="1">
+  <provides>
+    <operation id="OP-search-exact" kind="sync">
+      <purpose>Точный поиск подстроки</purpose>
+      <covers>FR-01</covers>
+      <inputs>
+        <field name="query"  type="string"             required="true" constraint="непустая"/>
+        <field name="corpus" type="list&lt;string&gt;" required="true" constraint="непустой"/>
+      </inputs>
+      <outputs>
+        <field name="found"   type="bool"/>
+        <field name="count"   type="int" constraint="&gt;=0"/>
+        <field name="matches" type="list&lt;Match&gt;"/>
+      </outputs>
+      <errors>
+        <error code="EMPTY_QUERY"  when="query пустой"/>
+        <error code="EMPTY_CORPUS" when="corpus пуст"/>
+      </errors>
+    </operation>
+
+    <operation id="OP-search-word" kind="sync">
+      <purpose>Поиск по полному слову (границы слова)</purpose>
+      <covers>FR-02</covers>
+      <inputs>
+        <field name="query"  type="string"             required="true" constraint="непустая"/>
+        <field name="corpus" type="list&lt;string&gt;" required="true" constraint="непустой"/>
+      </inputs>
+      <outputs>
+        <field name="found"   type="bool"/>
+        <field name="count"   type="int" constraint="&gt;=0"/>
+        <field name="matches" type="list&lt;Match&gt;"/>
+      </outputs>
+      <errors>
+        <error code="EMPTY_QUERY"  when="query пустой"/>
+        <error code="EMPTY_CORPUS" when="corpus пуст"/>
+      </errors>
+    </operation>
+
+    <operation id="OP-search
+      <purpose>Поиск по нормальной форме (лемме)</purpose>
+      <covers>FR-03</covers>
+      <inputs>
+        <field name="query" equired="true"constraint="непустая"/>
+        <field name="corpus"equired="true"constraint="непустой"/>
+        <field name="lang"  n}&gt;" required="false"
+               default="auto" note="если не задан — автоопределение (NFR-05)"/>
+      </inputs>
+      <outputs>
+        <field name="found"
+        <field name="count"   type="int" constraint="&gt;=0"/>
+        <field name="matches
+      </outputs>
+      <errors>
+        <error code="EMPTY_QUERY"  when="query пустой"/>
+        <error code="EMPTY_C
+      </errors>
+    </operation>
+  </provides>
+
+  <types>
+    <type name="Match">
+      <field name="doc_index" type="int" constraint="&gt;=0"/>
+      <field name="position";=0"/>
+      <field name="length"    type="int" constraint="&gt;0"/>
+    </type>
+  </types>
+
+  <consumes/>
+</contract>

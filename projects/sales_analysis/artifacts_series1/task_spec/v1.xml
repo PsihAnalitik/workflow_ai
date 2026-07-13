@@ -1,0 +1,229 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- analysis_spec.xml — спецификация анализа для запроса sales_quarter_report -->
+<!-- derived_from="input@sales_quarter_request" -->
+<analysis_spec version="1.0" derived_from="input@sales_quarter_request">
+
+  <source_request>
+    Проанализируй продажи за квартал: посчитай выручку по категориям и по месяцам,
+    найди топ-3 продукта по выручке и средний чек по регионам. Результаты нужны
+    в виде таблиц для отчёта руководителю. Строки с пропусками в количестве или цене
+    из расчётов исключай, но сообщай сколько их отброшено.
+  </source_request>
+
+  <dataset_summary>
+    <!-- используем только колонки, необходимые для FR -->
+    <column name="date" type="str" empty="0/28" format="YYYY-MM-DD" />
+    <column name="category" type="str" empty="0/28" />
+    <column name="product" type="str" empty="0/28" />
+    <column name="qty" type="int" empty="1/28" />
+    <column name="price" type="int" empty="1/28" />
+    <column name="region" type="str" empty="0/28" />
+  </dataset_summary>
+
+  <goals>
+    <!-- G-01 – G-05 сформулированы на основе текста запроса -->
+    <goal id="G-01">Получить суммарную выручку по категориям товаров за квартал.</goal>
+    <goal id="G-02">Получить суммарную выручку по месяцам квартала.</goal>
+    <goal id="G-03">Определить три продукта с наибольшей выручкой (топ-3).</goal>
+    <goal id="G-04">Рассчитать средний чек (среднюю выручку на заказ) для каждого региона.</goal>
+    <goal id="G-05">Знать, сколько строк исключено из-за пропусков в количестве или цене.</goal>
+  </goals>
+
+  <functional>
+    <!-- Все требования имеют приоритет must, так как прямо указаны в запросе -->
+    <fr id="FR-01" covers="G-01" priority="must">
+      Вычислить выручку (qty * price) для каждой строки, сгруппировать по category
+      и просуммировать.
+      Используемые колонки: category, qty, price.
+    </fr>
+    <fr id="FR-02" covers="G-02" priority="must">
+      Извлечь месяц из date (формат YYYY-MM-DD), вычислить выручку на строку,
+      сгруппировать по полученному номеру месяца и просуммировать.
+      Используемые колонки: date, qty, price.
+      <!-- WHY: месяц нужен явно, но колонки «месяц» в датасете нет;
+           выбрано извлечение из date, а не требование внешней колонки -->
+    </fr>
+    <fr id="FR-03" covers="G-03" priority="must">
+      Вычислить выручку на строку, сгруппировать по product, отсортировать по убыванию
+      суммарной выручки и взять первые три записи.
+      Используемые колонки: product, qty, price.
+    </fr>
+    <fr id="FR-04" covers="G-04" priority="must">
+      Вычислить выручку на строку, сгруппировать по region, для каждой группы
+      вычислить среднее арифметическое выручки (сумма выручки / количество строк в группе).
+      Используемые колонки: region, qty, price.
+      <!-- WHY: «средний чек» интерпретирован как средняя выручка в заказе, а не как
+           среднее qty * price, что эквивалентно среднему чеку на один чек -->
+    </fr>
+    <fr id="FR-05" covers="G-05" priority="must">
+      Подсчитать количество строк исходного датасета, у которых qty IS NULL или price IS NULL,
+      и включить это число в итоговый отчёт.
+      Используемые колонки: qty, price.
+    </fr>
+  </functional>
+
+  <modules>
+    <!-- Модули независимы по тестируемости, io не разделяет глобальное состояние -->
+    <module id="MOD-01">
+      <responsibility>Загрузка и очистка данных</responsibility>
+      <!-- WHY: очистка выделена в отдельный модуль, так как она должна подсчитать
+           пропуски и вернуть чистые данные до любой агрегации, что упрощает тестирование -->
+      <covers>FR-05</covers>
+      <io>
+        <inputs>
+          <input name="csv_file" type="File" />
+        </inputs>
+        <outputs>
+          <output name="clean_rows" type="List&lt;CleanRow&gt;" />
+          <!-- CleanRow: {date: str, category: str, product: str, qty: int, price: int, region: str} -->
+          <output name="discarded_count" type="int" />
+        </outputs>
+        <errors>
+          <error code="FILE_READ_ERROR" desc="Не удалось прочитать CSV-файл" />
+          <error code="SCHEMA_MISMATCH" desc="Несоответствие ожидаемой структуры колонок" />
+        </errors>
+      </io>
+    </module>
+
+    <module id="MOD-02">
+      <responsibility>Выделение признака «месяц» из даты</responsibility>
+      <!-- WHY: извлечение месяца вынесено отдельно, чтобы не загрязнять модуль агрегации
+           логикой парсинга дат и обеспечить переиспользование в других сценариях -->
+      <covers>FR-02</covers>
+      <io>
+        <inputs>
+          <input name="clean_rows" type="List&lt;CleanRow&gt;" />
+        </inputs>
+        <outputs>
+          <output name="enriched_rows" type="List&lt;EnrichedRow&gt;" />
+          <!-- EnrichedRow дополняет CleanRow полем month: int (1-12) -->
+        </outputs>
+        <errors>
+          <error code="INVALID_DATE_FORMAT" desc="Дата не соответствует формату YYYY-MM-DD" />
+        </errors>
+      </io>
+    </module>
+
+    <!-- WHY: Модуль MOD-03 разделён на отдельные модули (MOD-03, MOD-04, MOD-05, MOD-06)
+         согласно находке F-01 для соблюдения принципа единственной ответственности -->
+    <module id="MOD-03">
+      <responsibility>Агрегация выручки по категориям</responsibility>
+      <covers>FR-01</covers>
+      <io>
+        <inputs>
+          <input name="enriched_rows" type="List&lt;EnrichedRow&gt;" />
+        </inputs>
+        <outputs>
+          <output name="revenue_by_category" type="List&lt;{category: str, revenue: float}&gt;" />
+        </outputs>
+        <errors>
+          <error code="EMPTY_DATASET" desc="После очистки не осталось ни одной строки" />
+        </errors>
+      </io>
+    </module>
+
+    <module id="MOD-04">
+      <responsibility>Агрегация выручки по месяцам</responsibility>
+      <covers>FR-02</covers>
+      <io>
+        <inputs>
+          <input name="enriched_rows" type="List&lt;EnrichedRow&gt;" />
+        </inputs>
+        <outputs>
+          <output name="revenue_by_month" type="List&lt;{month: int, revenue: float}&gt;" />
+        </outputs>
+        <errors>
+          <error code="EMPTY_DATASET" desc="После очистки не осталось ни одной строки" />
+        </errors>
+      </io>
+    </module>
+
+    <module id="MOD-05">
+      <responsibility>Определение топ-3 продуктов по выручке</responsibility>
+      <covers>FR-03</covers>
+      <io>
+        <inputs>
+          <input name="enriched_rows" type="List&lt;EnrichedRow&gt;" />
+        </inputs>
+        <outputs>
+          <output name="top_products" type="List&lt;{product: str, revenue: float}&gt;" />
+        </outputs>
+        <errors>
+          <error code="EMPTY_DATASET" desc="После очистки не осталось ни одной строки" />
+        </errors>
+      </io>
+    </module>
+
+    <module id="MOD-06">
+      <responsibility>Расчёт среднего чека по регионам</responsibility>
+      <covers>FR-04</covers>
+      <io>
+        <inputs>
+          <input name="enriched_rows" type="List&lt;EnrichedRow&gt;" />
+        </inputs>
+        <outputs>
+          <output name="avg_check_by_region" type="List&lt;{region: str, avg_check: float}&gt;" />
+        </outputs>
+        <errors>
+          <error code="EMPTY_DATASET" desc="После очистки не осталось ни одной строки" />
+        </errors>
+      </io>
+    </module>
+
+    <module id="MOD-07">
+      <responsibility>Формирование отчётных таблиц</responsibility>
+      <!-- WHY: сборка презентационного слоя отделена от вычислений, чтобы можно было
+           менять формат вывода без изменения логики агрегаций -->
+      <covers>FR-05</covers>
+      <io>
+        <inputs>
+          <input name="revenue_by_category" type="List&lt;{category: str, revenue: float}&gt;" />
+          <input name="revenue_by_month" type="List&lt;{month: int, revenue: float}&gt;" />
+          <input name="top_products" type="List&lt;{product: str, revenue: float}&gt;" />
+          <input name="avg_check_by_region" type="List&lt;{region: str, avg_check: float}&gt;" />
+          <input name="discarded_count" type="int" />
+        </inputs>
+        <outputs>
+          <output name="report" type="StructuredReport" />
+          <!-- StructuredReport содержит таблицы: 1) Выручка по категориям,
+               2) Выручка по месяцам, 3) Топ-3 продукта, 4) Средний чек по регионам,
+               5) Количество исключённых строк -->
+        </outputs>
+        <errors>
+          <error code="MISSING_AGGREGATE" desc="Один из обязательных агрегатов отсутствует" />
+        </errors>
+      </io>
+    </module>
+  </modules>
+
+  <acceptance>
+    <!-- Каждый критерий проверяем через sample-данные из dataset_profile -->
+    <criteria for="FR-01">
+      <!-- sample: 5 строк без пропусков -->
+      При подаче sample-строк ожидаемая выручка по категориям:
+      electronics: (3*45000 + 1*92000 + 2*45000) = 317000,
+      home: (5*2500 + 1*18000) = 30500.
+    </criteria>
+    <criteria for="FR-02">
+      На тех же данных извлечённый месяц = 01; общая выручка за месяц =
+      317000 + 30500 = 347500.
+    </criteria>
+    <criteria for="FR-03">
+      Топ-3 продукта по убыванию выручки:
+      1) phone_x1: 3*45000 + 2*45000 = 225000
+      2) laptop_a3: 92000
+      3) vacuum_v8: 18000
+    </criteria>
+    <criteria for="FR-04">
+      Средний чек по регионам:
+      msk: (135000 + 12500)/2 = 73750
+      spb: (92000 + 18000)/2 = 55000
+      ekb: 90000
+    </criteria>
+    <criteria for="FR-05">
+      На sample-наборе (все строки без пропусков) discarded_count должен быть равен 0.
+      <!-- На полном датасете (28 строк, 1 пропуск в qty, 1 в price) ожидается значение ≥1,
+           но приемочный тест фиксирует проверяемое условие на известных данных -->
+    </criteria>
+  </acceptance>
+</analysis_spec>

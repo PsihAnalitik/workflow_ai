@@ -1,0 +1,30 @@
+{
+  "_comment": "Вариант графа для smoke-прогонов без интерактива: HITL-гейты выключены, agent-review остаётся. Рабочий режим цеха — graph.json.",
+  "project": "sales_analysis",
+  "llm_profiles_path": "configs/data_analyst/models.json",
+  "nodes": [
+    {
+      "id": "task_spec",
+      "config_path": "configs/data_analyst/nodes/task_spec.json",
+      "gates": {
+        "review_config_path": "configs/data_analyst/nodes/task_spec_review.json"
+      }
+    },
+    {
+      "id": "tech_selection",
+      "config_path": "configs/data_analyst/nodes/tech_selection.json"
+    },
+    {
+      "id": "executor",
+      "config_path": "configs/data_analyst/nodes/executor.json",
+      "kind": "codegen",
+      "image": "workshop-python:latest",
+      "gates": {"judge_config_path": "configs/data_analyst/nodes/judge.json"}
+    }
+  ],
+  "edges": [
+    {"from": "task_spec", "to": "tech_selection"},
+    {"from": "task_spec", "to": "executor"},
+    {"from": "tech_selection", "to": "executor"}
+  ]
+}

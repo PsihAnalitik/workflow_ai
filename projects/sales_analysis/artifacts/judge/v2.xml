@@ -1,0 +1,13 @@
+<verdict derived_from="analysis_spec.xml@1.0, executor@1.0">
+  <coverage>
+    <fr id="FR-01" status="covered" module="revenue_by_category.py:revenue_by_category" test="test_revenue_by_category.py::test_revenue_by_category_happy"/>
+    <fr id="FR-02" status="covered" module="revenue_by_month.py:revenue_by_month" test="test_revenue_by_month.py::test_revenue_by_month_happy"/>
+    <fr id="FR-03" status="covered" module="top3_products.py:top3_products" test="test_top3_products.py::test_top3_products_happy"/>
+    <fr id="FR-04" status="covered" module="avg_receipt_by_region.py:avg_receipt_by_region" test="test_avg_receipt_by_region.py::test_avg_receipt_by_region_happy"/>
+    <fr id="FR-05" status="covered" module="data_cleaning.py:clean_data" test="test_data_cleaning.py::test_clean_data_happy_path"/>
+  </coverage>
+  <decision>READY</decision>
+  <reasons>
+    <!-- Все FR с priority="must" реализованы и покрыты тестами. -->
+  </reasons>
+</verdict>

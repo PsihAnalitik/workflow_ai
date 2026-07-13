@@ -1,0 +1,167 @@
+<analysis_spec derived_from="input@1.1">
+  <source_request>
+    Проанализируй продажи за квартал: посчитай выручку по категориям и по месяцам,
+    найди топ-3 продукта по выручке и средний чек по регионам. Результаты нужны
+    в виде таблиц для отчёта руководителю. Строки с пропусками в количестве или цене
+    из расчётов исключай, но сообщай сколько их отброшено.
+  </source_request>
+
+  <dataset_summary>
+    <column name="date" type="Text" nullable="false" format="ISO8601 date"/>
+    <column name="category" type="Text" nullable="false"/>
+    <column name="product" type="Text" nullable="false"/>
+    <!-- WHY: в профиле qty=1/28 пусто, price=1/28 пусто; nullable отражает факт пропусков -->
+    <column name="qty" type="Integer" nullable="true" empty_count="1"/>
+    <column name="price" type="Integer" nullable="true" empty_count="1"/>
+    <column name="region" type="Text" nullable="false"/>
+  </dataset_summary>
+
+  <goals>
+    <goal id="G-01">Получить сумму выручки по каждой категории товаров за квартал для отчёта руководителю.</goal>
+    <goal id="G-02">Получить сумму выручки по каждому месяцу квартала.</goal>
+    <goal id="G-03">Определить три продукта с наибольшей выручкой за квартал.</goal>
+    <goal id="G-04">Рассчитать средний чек (выручка / число транзакций) по регионам.</goal>
+    <goal id="G-05">Узнать количество строк, исключённых из-за пропусков в полях количества или цены, для прозрачности отчёта.</goal>
+  </goals>
+
+  <functional>
+    <fr id="FR-01" covers="G-01" priority="must">
+      Для каждой категории вычислить суммарную выручку как сумму (qty * price) по всем строкам, где qty и price не null.
+      Вывести таблицу: категория, выручка.
+      Используются колонки: category, qty, price.
+    </fr>
+    <fr id="FR-02" covers="G-02" priority="must">
+      Для каждого месяца (извлекается из date) вычислить суммарную выручку аналогично.
+      Вывести: месяц, выручка.
+      Используются колонки: date, qty, price.
+    </fr>
+    <fr id="FR-03" covers="G-03" priority="must">
+      Для каждого продукта вычислить суммарную выручку (qty * price без null).
+      Отсортировать по убыванию выручки, взять первые три.
+      Вывести: продукт, выручка.
+      Используются колонки: product, qty, price.
+    </fr>
+    <fr id="FR-04" covers="G-04" priority="must">
+      Для каждого региона вычислить средний чек = общая выручка / количество строк (транзакций) по этому региону.
+      Вывести: регион, средний чек.
+      Используются колонки: region, qty, price.
+    </fr>
+    <fr id="FR-05" covers="G-05" priority="should">
+      Подсчитать общее количество строк исходного набора, в которых qty IS NULL или price IS NULL.
+      Вывести одно число – счёт исключённых строк.
+      Используются колонки: qty, price (статус null).
+    </fr>
+  </functional>
+
+  <modules>
+    <!-- WHY: по находке F-01 модуль теперь выполняет исключительно подсчёт исключённых строк, фильтрация вынесена в агрегирующие модули (MOD-02–MOD-05) -->
+    <module id="MOD-01">
+      <responsibility>Подсчёт строк с пропущенными значениями qty или price.</responsibility>
+      <covers>FR-05</covers>
+      <io>
+        <INPUTS>
+          <input name="raw_rows" type="Table" description="Все строки датасета с колонками qty, price"/>
+        </INPUTS>
+        <OUTPUTS>
+          <output name="discarded_count" type="Integer" description="Число строк, где qty IS NULL или price IS NULL"/>
+        </OUTPUTS>
+      </io>
+      <ERRORS>
+        <error>NO_RAW_DATA – входная таблица пуста (0 строк). Возвращается discarded_count = 0.</error>
+      </ERRORS>
+    </module>
+
+    <!-- WHY: Модули MOD-02..MOD-05 теперь самостоятельно отбрасывают строки с пропусками перед расчётом, чтобы не зависеть от внешнего источника чистых данных и сохранить единственную ответственность у MOD-01 -->
+    <module id="MOD-02">
+      <responsibility>Агрегация выручки по категориям с исключением неполных строк.</responsibility>
+      <covers>FR-01</covers>
+      <io>
+        <INPUTS>
+          <input name="raw_rows" type="Table" description="Все строки с колонками category, qty, price; строки с null в qty или price будут отброшены"/>
+        </INPUTS>
+        <OUTPUTS>
+          <output name="category_revenue" type="Table" description="Столбцы: category (Text), revenue (Integer)"/>
+        </OUTPUTS>
+      </io>
+      <ERRORS>
+        <error>EMPTY_INPUT – после фильтрации не осталось данных. Возвращается пустая таблица.</error>
+      </ERRORS>
+    </module>
+
+    <module id="MOD-03">
+      <responsibility>Агрегация выручки по месяцам с исключением неполных строк.</responsibility>
+      <covers>FR-02</covers>
+      <io>
+        <INPUTS>
+          <input name="raw_rows" type="Table" description="Все строки с колонками date, qty, price; null-строки исключаются"/>
+        </INPUTS>
+        <OUTPUTS>
+          <output name="monthly_revenue" type="Table" description="Столбцы: month (Text, формат YYYY-MM), revenue (Integer)"/>
+        </OUTPUTS>
+      </io>
+      <ERRORS>
+        <error>EMPTY_INPUT – после фильтрации данных нет. Возвращается пустая таблица.</error>
+      </ERRORS>
+    </module>
+
+    <module id="MOD-04">
+      <responsibility>Поиск трёх продуктов с наибольшей выручкой, исключая неполные строки.</responsibility>
+      <covers>FR-03</covers>
+      <io>
+        <INPUTS>
+          <input name="raw_rows" type="Table" description="Все строки с колонками product, qty, price; пропуски отбрасываются"/>
+        </INPUTS>
+        <OUTPUTS>
+          <!-- WHY: если уникальных продуктов меньше трёх, выводится меньшее число строк – явно допускаем неполный набор -->
+          <output name="top_products" type="Table" description="Столбцы: product (Text), revenue (Integer). Строго три строки, если данных достаточно; иначе меньше."/>
+        </OUTPUTS>
+      </io>
+      <ERRORS>
+        <error>INSUFFICIENT_DATA – после фильтрации менее трёх уникальных продуктов. Возвращается столько, сколько есть (0–2 строки).</error>
+        <error>EMPTY_INPUT – после фильтрации данных нет. Возвращается пустая таблица.</error>
+      </ERRORS>
+    </module>
+
+    <module id="MOD-05">
+      <responsibility>Расчёт среднего чека по регионам с исключением неполных строк.</responsibility>
+      <covers>FR-04</covers>
+      <io>
+        <INPUTS>
+          <input name="raw_rows" type="Table" description="Все строки с колонками region, qty, price; null-строки исключаются"/>
+        </INPUTS>
+        <OUTPUTS>
+          <!-- WHY: средний чек – дробное, округляем до копеек по обычным правилам арифметики -->
+          <output name="region_avg_receipt" type="Table" description="Столбцы: region (Text), avg_receipt (Float, арифметическое округление до 2 знаков)"/>
+        </OUTPUTS>
+      </io>
+      <ERRORS>
+        <error>EMPTY_INPUT – после фильтрации данных нет. Возвращается пустая таблица.</error>
+      </ERRORS>
+    </module>
+  </modules>
+
+  <acceptance>
+    <!-- WHY: значения проверены по sample-данным, охватывают все FR -->
+    <criterion for="FR-01">
+      Для sample данных: electronics – (3*45000 + 1*92000 + 2*45000) = 317000; home – (5*2500 + 1*18000) = 30500.
+      Результат должен содержать две строки: electronics=317000, home=30500.
+    </criterion>
+    <criterion for="FR-02">
+      Для sample данных все строки относятся к январю-2026, общая выручка 347500.
+      Результат: одна строка (2026-01, 347500).
+    </criterion>
+    <criterion for="FR-03">
+      Для sample данных топ-3: phone_x1 (225000), laptop_a3 (92000), vacuum_v8 (18000).
+      Порядок – строго по убыванию выручки.
+    </criterion>
+    <criterion for="FR-04">
+      Для sample данных: msk средний чек = (135000+12500)/2 = 73750.00;
+      spb = (92000+18000)/2 = 55000.00; ekb = 90000/1 = 90000.00.
+      Допускается погрешность округления в последнем знаке.
+    </criterion>
+    <criterion for="FR-05">
+      <!-- WHY: профиль сообщает ровно по одному пропуску в qty и price; если они в разных строках, исключено 2 -->
+      При полном наборе данных из 28 строк исключено ровно 2 строки, у которых qty IS NULL или price IS NULL.
+    </criterion>
+  </acceptance>
+</analysis_spec>

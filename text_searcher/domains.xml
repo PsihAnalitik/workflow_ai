@@ -1,0 +1,16 @@
+<domains project="text_search" version="1">
+
+  <domain id="D-01" name="text_search">
+    <responsibility>Поиск вхождений запроса в корпус текстов</responsibility>  <!-- одна ответственность -->
+    <covers>FR-01, FR-02, FR-03</covers>          <!-- CrossLink → requirements.xml (трассировка) -->
+    <ubiquitous_language>                          <!-- единый язык домена (DDD) -->
+      <term name="корпус">набор текстов, по которым идёт поиск</term>
+      <term name="лемма">нормальная форма слова</term>
+    </ubiquitous_language>
+    <owns>входной корпус (в памяти); результат поиска</owns>   <!-- владение данными, абстрактно -->
+    <emits/>                                       <!-- доменные события, публикуемые наружу (нет) -->
+  </domain>
+
+  <relationships/>   <!-- один домен → рёбер нет → DAG = единственный узел -->
+
+</domains>

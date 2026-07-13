@@ -1,0 +1,1185 @@
+<development_plan project="agent_workshop" version="10"
+                  derived_from="user_docs/task_statement.md@v6">
+  <!-- v4: CLI фабрики (FR-22) — модуль M-19 factory_cli, обновление TSK-0903;
+       этап 12.
+       v5: MCP-сервер (FR-23) — модуль M-20 mcp_server, зависимость mcp SDK;
+       этап 13.
+       v6: цех llm_wiki «вики из чатов» (запрос автора 10.07.2026) — модуль
+       M-22 material (инжест текст+URL, чанкование под контекстное окно,
+       Retriever как seam для RAG, инструменты material_*), обвязка
+       GraphConfig.material; этапы 14–15.
+       v7: заимствования из ailab (запрос автора 10.07.2026): TSK-2204
+       retry-стратегия в описании поиска + chunk_overlap; TSK-2205 wiki-стор
+       и инструменты wiki_search/wiki_get (адресная маршрутизация узлов по
+       wiki вместо тотального бандла); TSK-2206 векторный RemoteBGEM3Retriever
+       (контракт /encode сервиса bge-m3 из smart-assistant, включение через
+       env BGE_M3_SERVICE_URL); этап 16.
+       v8: массовые прогоны (запрос автора 11.07.2026: прожарка промптов
+       smart-assistant + валидация таблиц schema.yaml) — M-23 map_driver
+       (итерация цеха по элементам: файлы/таблицы, resume, сводка),
+       TSK-2207 санитизация TOC + inline_limit_chars=0 («всегда оглавлением»),
+       цеха prompt_roaster и table_validator, зависимость PyYAML;
+       этапы 17–18.
+       v9: пилот .workflow_ai в smart-assistant (запрос автора 11.07.2026) —
+       M-24 db_query (read-only инструмент БД, psycopg), TSK-2304 шаблонные
+       дет-проверки map-драйвера, TSK-2305 трёхсторонний элемент
+       schema+tools.yaml+card, стадия roast_fix (graph.fix.json);
+       этапы 19–21.
+       v10: параллельный map (запрос автора 11.07.2026) — TSK-2306
+       ThreadPoolExecutor по элементам (--workers, потолок 16; LLM-вызовы
+       I/O-bound), HITL-графы несовместимы с параллелью — явный отказ;
+       этап 22 -->
+
+  <!-- v2: wiki-база знаний (FR-18..FR-20) — модули M-16/M-17, расширения
+       M-01/M-06/M-09 и CLI; этапы 7–9 порядка реализации.
+       v3: цех актуализации wiki (FR-21) — M-18 wiki_applier, TSK-1605
+       orphan-детектор, CLI wiki-apply, конфиги цеха wiki_maintainer;
+       этапы 10–11. Попутно v2→v3: rework-контексты циклов (TSK-0601/0701/
+       0901/1101 — аудит 09.07.2026). -->
+
+
+  <!-- WHY: V2 «библиотека модулей + конфигурируемый FSM» выбрана из трёх вариантов
+       декомпозиции: V1 (монолит на цех) нарушает цели модульности §4, V3 (микросервис
+       на мастерскую) — сетевая обвязка без выгоды для single-user CLI, против NFR-05. -->
+
+  <technology>
+    <language>Python 3.14</language>
+    <layout>пакет workshop/ (каталог зарезервирован в репозитории)</layout>
+    <style>
+      Result[T, E] вместо исключений в бизнес-логике; исключения только на границе
+      с внешним миром (IO, docker, сеть) и немедленно конвертируются в Err.
+      Полная типизация; if-elif-else вместо неявных веток; dataclass/pydantic-модели.
+    </style>
+    <dependencies note="минимум, frozen на этапе реализации">
+      <dep name="pydantic" why="валидация конфигов и моделей артефактов"/>
+      <dep name="openai SDK" why="провайдер MVP (за интерфейсом M-04); другие провайдеры —
+           новыми адаптерами того же Protocol при необходимости"/>
+      <!-- WHY: docker через subprocess + CLI, не docker-py: минус зависимость (NFR-05),
+           поведение прозрачно воспроизводится руками той же командой -->
+      <dep name="docker CLI (subprocess)" why="песочница M-10"/>
+      <dep name="pytest" why="unit/golden/e2e тесты"/>
+      <dep name="mcp SDK" why="MCP-сервер M-20 (FR-23); осознанное отступление
+           от NFR-05 — протокол вручную дороже и хрупче (решение §10 №15)"/>
+    </dependencies>
+  </technology>
+
+  <modules>
+
+    <module id="M-01" name="config_loader">
+      <responsibility>Загрузка и валидация конфигов узлов и графа</responsibility>
+      <covers>FR-02, FR-03</covers>
+      <task id="TSK-0101">
+        <purpose>Загрузить конфиг мастерской (узла) и разрешить профиль модели</purpose>
+        <inputs>path: str; profiles: dict[имя, LLMParams] | None (реестр из TSK-0103)</inputs>
+        <outputs>Result[NodeConfig] — base_prompt_path, stage_map_path, wiki_refs[версия!],
+                 wiki_refs_from: str | None (имя артефакта-источника динамических
+                 wiki-ссылок, FR-19/FR-21; допустим ВМЕСТЕ с wiki_refs —
+                 динамические ссылки ДОБАВЛЯЮТСЯ к статическим: у узла бывают
+                 постоянные материалы + зависящие от принятого артефакта,
+                 кейс wiki_pages 09.07.2026),
+                 tools[], task_class: str | None (класс задачи узла для политики FR-16),
+                 llm: {provider, model, temperature, seed, ...}.
+                 Источники llm по приоритету: inline-блок llm &gt; llm_profile &gt;
+                 policy.by_class[task_class] (fallback policy.default); llm и llm_profile
+                 одновременно — дефект; после загрузки llm всегда заполнен</outputs>
+        <errors>CONFIG_NOT_FOUND; CONFIG_INVALID(поле, причина — в т.ч. оба источника
+                LLM сразу, ни одного источника, task_class без политики в реестре,
+                класс не покрыт by_class и нет default);
+                UNKNOWN_LLM_PROFILE(имя)</errors>
+      </task>
+      <task id="TSK-0103">
+        <purpose>Загрузить реестр моделей (models.json): профили + политика FR-16
+                 «класс задачи → профиль» — дешёвая модель на проекции, сильная
+                 на проектирование/ревью, настраивается в одном месте</purpose>
+        <inputs>path: str</inputs>
+        <outputs>Result[ModelRegistry(profiles: {имя: LLMParams},
+                 policy: {by_class: {класс: имя-профиля}, default: имя-профиля} | None)].
+                 Валидация: все ссылки политики указывают на существующие профили</outputs>
+        <errors>CONFIG_NOT_FOUND; CONFIG_INVALID(профиль/ссылка политики, причина)</errors>
+      </task>
+      <task id="TSK-0102">
+        <purpose>Загрузить конфиг графа цеха</purpose>
+        <inputs>path: str</inputs>
+        <outputs>Result[GraphConfig] — nodes[], edges[], gates per node
+                 (review?, hitl?), max_iterations; llm_profiles_path: str | None
+                 (реестр профилей моделей для узлов с llm_profile).
+                 Узел несёт kind: workshop | codegen; для codegen обязателен image
+                 (+ test_command, дефолт «python -m pytest -q»), review-гейт запрещён,
+                 оценка кода — judge-ГЕЙТ: gates.judge_config_path (только kind=codegen) —
+                 автоцикл judge→codegen внутри узла (см. TSK-0901).
+                 Граф несёт project: str | None — имя целевого проекта; выходы цеха
+                 (стор, журналы) по умолчанию складываются в projects/&lt;project&gt;/
+                 (изоляция проектов, корень репо не засоряется).
+                 Опциональный блок package (для TSK-1201): {code_node (дефолт executor),
+                 image, serve?, test_command, ports[]}</outputs>
+        <errors>CONFIG_NOT_FOUND; CONFIG_INVALID; GRAPH_CYCLE; UNKNOWN_NODE_REF</errors>
+      </task>
+      <task id="TSK-0104">
+        <purpose>Загрузить спеку продукта (product.json) для сборки FR-14</purpose>
+        <inputs>path: str</inputs>
+        <outputs>Result[ProductSpec] — product; services[]: {name (DNS-совместимое),
+                 package (путь к пакету FR-13), ports[], env{}, depends_on[]}.
+                 Валидация: имена уникальны, depends_on ссылается на существующие</outputs>
+        <errors>CONFIG_NOT_FOUND; CONFIG_INVALID(поле, причина)</errors>
+      </task>
+      <notes>Формат конфигов — JSON: stdlib-парсер, pydantic-валидация; yaml-зависимость не нужна</notes>
+    </module>
+
+    <module id="M-02" name="artifact_store">
+      <responsibility>Версионированные артефакты и валидация кросс-ссылок</responsibility>
+      <covers>FR-04, NFR-01, NFR-02</covers>
+      <task id="TSK-0201">
+        <purpose>Сохранить артефакт новой версией (append-only)</purpose>
+        <inputs>name: str, content: str, derived_from: ArtifactRef | None</inputs>
+        <outputs>Result[ArtifactRef(name, version)]</outputs>
+        <errors>VERSION_EXISTS; STORE_IO_ERROR</errors>
+      </task>
+      <task id="TSK-0202">
+        <purpose>Загрузить артефакт по ссылке</purpose>
+        <inputs>ref: ArtifactRef</inputs>
+        <outputs>Result[Artifact(content, derived_from)]</outputs>
+        <errors>ARTIFACT_NOT_FOUND; STORE_IO_ERROR
+                <!-- WHY: файл существует, но нечитаем — не «не найден», врать кодом нельзя --></errors>
+      </task>
+      <task id="TSK-0204">
+        <purpose>Найти последнюю версию артефакта по имени (для resume, TSK-0905)</purpose>
+        <inputs>name: str</inputs>
+        <outputs>Result[ArtifactRef(name, max_version)]</outputs>
+        <errors>ARTIFACT_NOT_FOUND(имя — ни одной версии)</errors>
+      </task>
+      <task id="TSK-0205">
+        <purpose>Перечислить все артефакты стора (для CHANGELOG пакета, TSK-1201)</purpose>
+        <inputs>—</inputs>
+        <outputs>list[ArtifactRef] — все имена и версии, отсортированы; пустой стор → []</outputs>
+        <errors>нет (тотальная функция)</errors>
+      </task>
+      <task id="TSK-0203">
+        <purpose>Проверить кросс-ссылки артефакта на старший (id-схемы FR/D/C/OP)</purpose>
+        <inputs>artifact: Artifact, upstream: Artifact</inputs>
+        <outputs>Result[CrosslinkReport(broken_links[], uncovered_ids[])]
+                 <!-- WHY: битые ссылки — содержимое отчёта, а не Err: это валидный
+                      результат проверки, по нему решает гейт, не исключение --></outputs>
+        <errors>UPSTREAM_UNPARSEABLE</errors>
+      </task>
+    </module>
+
+    <module id="M-03" name="prompt_builder">
+      <responsibility>Сборка промпта: base + stage-карта + INPUTS</responsibility>
+      <covers>FR-01, NFR-03</covers>
+      <task id="TSK-0301">
+        <purpose>Распарсить stage-карту в словарь фрагментов</purpose>
+        <inputs>stage_map_text: str  <!-- разметка @fragment NAME ... @end --></inputs>
+        <outputs>Result[dict[str, str]]</outputs>
+        <errors>FRAGMENT_MALFORMED(имя/позиция); DUPLICATE_FRAGMENT(имя)</errors>
+      </task>
+      <task id="TSK-0302">
+        <purpose>Собрать финальный промпт</purpose>
+        <inputs>base: str, fragments: dict[str, str], inputs: str</inputs>
+        <outputs>Result[str]  <!-- single-pass подстановка + финальный скан остатков.
+                 Ведущий заголовочный HTML-комментарий base вырезается ДО сборки:
+                 это meta-документация для человека (в т.ч. упоминания {{NAME}}),
+                 в контекст LLM не идёт (NFR-03). Комментарии в ТЕЛЕ base сохраняются —
+                 они содержательная часть промпта (пример формата WHY в U1) --></outputs>
+        <errors>UNRESOLVED_PLACEHOLDER(имя); INPUTS_EMPTY</errors>
+      </task>
+    </module>
+
+    <module id="M-04" name="llm_client">
+      <responsibility>Единый интерфейс вызова LLM-провайдеров</responsibility>
+      <covers>FR-02</covers>
+      <task id="TSK-0401">
+        <purpose>Выполнить completion с заданными параметрами</purpose>
+        <inputs>prompt: str, params: LLMParams(provider, model, temperature, seed, max_tokens)</inputs>
+        <outputs>Result[LLMResponse(text, usage)]</outputs>
+        <errors>PROVIDER_ERROR(код, сообщение); TIMEOUT</errors>
+      </task>
+      <task id="TSK-0402">
+        <purpose>Tool-calling цикл: узел с инструментами (web_search и далее) —
+                 модель сама решает, когда искать (FR: инструменты агентов, 2026-07-10)</purpose>
+        <inputs>prompt: str, params: LLMParams,
+                tools: Sequence[ToolSpec(name, description, parameters(JSON Schema),
+                executor: dict -> str)] — расширение сигнатуры complete;
+                tools пуст → поведение TSK-0401 байт-в-байт (обратная совместимость)</inputs>
+        <outputs>Result[LLMResponse(text, usage, tool_trace)] — трейс вызовов
+                 «имя(аргументы) → результат» для журнала (NFR-04)</outputs>
+        <errors>PROVIDER_ERROR; TIMEOUT; TOOL_LOOP_EXCEEDED(модель не завершила
+                за MAX_TOOL_ROUNDS=5 раундов).
+                Ошибки ИСПОЛНИТЕЛЯ инструмента — НЕ ошибки узла: executor всегда
+                возвращает str («ОШИБКА ПОИСКА …»), модель продолжает из знаний —
+                сбой внешнего поиска не роняет конвейер; невалидный JSON аргументов
+                и неизвестное имя инструмента от модели — тоже текстом в role=tool</errors>
+        <algorithm>
+          1. messages = [user(prompt)]; tools → payload function calling
+          2. до MAX_TOOL_ROUNDS: completion; ЕСЛИ msg.tool_calls → для каждого:
+             распарсить аргументы, выполнить executor, добавить role=tool,
+             пункт в tool_trace; ИНАЧЕ → финальный текст, выход
+          3. раунды исчерпаны → принудительный финал: tools ОСТАЮТСЯ в запросе,
+             но tool_choice="none" + user-инструкция «дай финальный ответ»
+             (живые прогоны 2026-07-10: deepseek без лимита бесконечно уточнял
+             запрос; а при удалении tools из запроса эмитил сырую DSML-разметку
+             вызова текстом — потому запрет вызовов, не скрытие инструментов);
+             ЕСЛИ и финал не дал текста → TOOL_LOOP_EXCEEDED (в details —
+             выполненные вызовы для диагностики)
+        </algorithm>
+      </task>
+      <notes>API-ключи только из переменных окружения (.env.example в репо).
+             FakeLLM-реализация того же интерфейса — для тестов без сети.
+             Провайдер MVP — OpenAI (решение автора, 08.07.2026): адаптер OpenAILLM
+             поверх chat.completions, ключ из OPENAI_API_KEY; base URL переопределяем —
+             из OPENAI_BASE_URL или аргументом (прокси / совместимые API), пустой → дефолт SDK;
+             адаптер явно проверяет поле provider конфига узла (несовпадение →
+             PROVIDER_ERROR, не молчаливый вызов); seed=None в API не передаётся.</notes>
+    </module>
+
+    <module id="M-05" name="run_log">
+      <responsibility>Полный журнал прогонов узлов</responsibility>
+      <covers>NFR-03, NFR-04</covers>
+      <task id="TSK-0501">
+        <purpose>Записать прогон: собранный промпт, входной артефакт, параметры LLM, ответ</purpose>
+        <inputs>record: RunRecord(node_id, iteration, prompt, input_ref, params, response,
+                tool_trace — вызовы инструментов узла TSK-0402, дефолт пуст:
+                старые записи jsonl совместимы)</inputs>
+        <outputs>Result[RunRef]  <!-- append-only jsonl; прогон воспроизводим по записи --></outputs>
+        <errors>LOG_IO_ERROR</errors>
+      </task>
+    </module>
+
+    <module id="M-06" name="workshop_node">
+      <responsibility>Мастерская: один запуск = один артефакт или вопрос</responsibility>
+      <covers>FR-02, FR-07, NFR-03</covers>
+      <task id="TSK-0601">
+        <purpose>Выполнить узел-мастерскую</purpose>
+        <inputs>config: NodeConfig, upstream: Artifact,
+                iteration_context: str | None
+                <!-- WHY: находки ревью / комментарии HITL / ответы на clarification
+                     попадают в повторную итерацию ТОЛЬКО через это явное поле —
+                     вывод mental test TSK-0901.
+                     Формат rework-контекста (аудит 09.07.2026, вариант B):
+                     &lt;previous_artifact&gt;полный черновик прошлой итерации&lt;/previous_artifact&gt;
+                     + &lt;review_findings&gt;&lt;finding id="F-NN" weight="pN" rule="RK"
+                     anchor="локация-id"&gt;текст&lt;/finding&gt;...&lt;/review_findings&gt;
+                     (при HITL REVISE вместо findings — &lt;user_comments&gt;);
+                     генератор правит ТОЛЬКО элементы из anchor, остальное дословно --></inputs>
+        <outputs>Result[WorkshopOutcome] где Outcome =
+                 ARTIFACT(content) | NEEDS_CLARIFICATION(question)</outputs>
+        <errors>PROMPT_BUILD_FAILED(из M-03); LLM_FAILED(из M-04); OUTPUT_UNPARSEABLE;
+                LOG_IO_ERROR(из M-05 — потеря лога ломает NFR-04, не глотаем);
+                WIKI_PAGE_NOT_FOUND / WIKI_PAGE_INVALID / WIKI_BUNDLE_TOO_LARGE (из M-16)</errors>
+        <algorithm>
+          1. TSK-0302 собрать промпт (INPUTS = wiki-бандл TSK-1602 по config.wiki_refs
+             либо по ссылкам, разрешённым оркестратором из wiki_refs_from (TSK-0901),
+             + листинг дерева TSK-1606 при config.wiki_tree_root
+             + upstream.content + iteration_context)
+          1а. config.tools → TSK-2102 build_tools (неизвестное имя →
+             UNKNOWN_TOOL, явный отказ ДО вызова LLM)
+          2. TSK-0401/TSK-0402 вызвать LLM (с инструментами, если заданы);
+             tool_trace ответа — в запись журнала TSK-0501
+          3. TSK-0501 записать прогон (до парсинга — лог полон даже при отказе)
+          4. распарсить ответ ПО ПОРЯДКУ: блоки ```file:путь``` (≥1 → артефакт =
+             каноничная сериализация ВСЕХ file-блоков, формат M-11 — мастерские
+             могут выдавать file map, FR-21) | первый блок кода | маркер
+             NEEDS_CLARIFICATION | иначе Err.
+             <!-- WHY: блок артефакта проверяется РАНЬШЕ маркера — иначе слово
+                  NEEDS_CLARIFICATION в ДАННЫХ артефакта (source_request с
+                  упоминанием маркера — реальный случай 09.07.2026) инжектится
+                  в протокол и уводит узел в ложный clarification -->
+          5. если ARTIFACT → TSK-0203 проверить кросс-ссылки, отчёт приложить к исходу
+        </algorithm>
+      </task>
+    </module>
+
+    <module id="M-07" name="review_gate">
+      <responsibility>Агентское ревью артефакта и вычисление гейта</responsibility>
+      <covers>FR-05</covers>
+      <task id="TSK-0701">
+        <purpose>Прогнать review-агента (правила + артефакт + domain-контекст)</purpose>
+        <inputs>review_config: NodeConfig, artifact: Artifact,
+                prior_context: str | None
+                <!-- WHY: повторный проход видит прошлые находки F-NN
+                     (&lt;prior_findings&gt;) — проверяет их закрытие; блоки,
+                     не тронутые прошлым ревью, уже проходили гейт и повторно
+                     валить его не могут (максимум p1) — лечит расходимость цикла --></inputs>
+        <outputs>Result[ReviewReport(findings[{weight: p3|p2|p1|p0, rule, location, text}])]</outputs>
+        <errors>REPORT_UNPARSEABLE; + ошибки M-06 (ревью — тоже мастерская)</errors>
+      </task>
+      <task id="TSK-0703">
+        <purpose>Распарсить вердикт judge из артефакта verdict.xml (чистая функция)</purpose>
+        <inputs>content: str (артефакт judge)</inputs>
+        <outputs>Result[VerdictDecision(ready: bool, reasons: str)]</outputs>
+        <errors>VERDICT_UNPARSEABLE(нет &lt;decision&gt;READY|NOT_READY&lt;/decision&gt;)</errors>
+      </task>
+      <task id="TSK-0702">
+        <purpose>Вычислить вердикт гейта (чистая функция)</purpose>
+        <inputs>report: ReviewReport</inputs>
+        <outputs>GateDecision = PASS | FAIL(open_findings[])
+                 <!-- PASS ⇔ нет открытых p3/p2 — правило из prompts/artifacts/* --></outputs>
+        <errors>нет (тотальная функция)</errors>
+      </task>
+    </module>
+
+    <module id="M-08" name="hitl_cli">
+      <responsibility>Human-in-the-loop приёмка через CLI</responsibility>
+      <covers>FR-06</covers>
+      <task id="TSK-0801">
+        <purpose>Показать артефакт + отчёты, получить решение</purpose>
+        <inputs>artifact: Artifact, reports: [ReviewReport | CrosslinkReport]</inputs>
+        <outputs>Result[HITLDecision] = ACCEPT | REVISE(comments: str) | REJECT(reason: str)</outputs>
+        <errors>INPUT_ABORTED (Ctrl-C/EOF)</errors>
+      </task>
+      <task id="TSK-0802">
+        <purpose>Задать пользователю вопрос NEEDS_CLARIFICATION</purpose>
+        <inputs>question: str</inputs>
+        <outputs>Result[answer: str]</outputs>
+        <errors>INPUT_ABORTED</errors>
+      </task>
+    </module>
+
+    <module id="M-09" name="orchestrator">
+      <responsibility>FSM: переходы между узлами, гейты, итерационные циклы</responsibility>
+      <covers>FR-03, FR-07</covers>
+      <task id="TSK-0901">
+        <purpose>Выполнить пайплайн цеха по конфигу графа</purpose>
+        <inputs>graph: GraphConfig, initial_input: Artifact</inputs>
+        <outputs>Result[PipelineResult(accepted_artifacts[], log_path)]
+                 <!-- WHY: ссылки на прогоны не дублируются в результате — их источник
+                      истины единый журнал M-05 (log_path) --></outputs>
+        <errors>NODE_FAILED(node_id, причина); MAX_ITERATIONS_EXCEEDED(node_id);
+                REJECTED_BY_USER(node_id); INPUT_ABORTED</errors>
+        <algorithm>
+          Состояния узла: PENDING → RUNNING → (REVIEW) → (HITL) → ACCEPTED | FAILED;
+          побочные: CLARIFICATION (вопрос → TSK-0802 → ответ в iteration_context).
+          Цикл итераций узла: FAIL гейта → iteration_context ← rework-контекст
+          (previous_artifact + review_findings с F-NN и anchor — формат в TSK-0601);
+          REVISE → previous_artifact + user_comments; iteration++;
+          iteration > max_iterations → MAX_ITERATIONS_EXCEEDED.
+          Повторное ревью получает prior_context = прошлые находки F-NN (TSK-0701).
+          Переход к следующему узлу только из ACCEPTED (гейт методологии).
+          Узел kind=codegen: вместо TSK-0601 вызывается TSK-1101 (внутренний цикл
+          тестов — в нём); HITL видит file map + отчёт тестов; REVISE →
+          &lt;previous_artifact&gt; (file map черновика) + &lt;user_comments&gt;
+          в initial_context нового вызова TSK-1101; принятый артефакт = сериализованный
+          file map (формат ```file:путь```). Песочница (sandbox) — DI-параметр
+          run_pipeline для тестируемости.
+          Judge-гейт codegen-узла (автоцикл judge→codegen): после прохождения тестов
+          judge-мастерская (upstream = ТЗ + сериализованный код) выдаёт verdict.xml;
+          TSK-0703 парсит decision. NOT_READY → &lt;previous_artifact&gt; (file map)
+          + &lt;judge_verdict&gt; (ПОЛНЫЙ вердикт: таблица покрытия говорит, ЧТО
+          именно missing) в контекст следующей итерации TSK-1101, счётчик итераций++.
+          READY → вердикт идёт в HITL-отчёты, после приёмки сохраняется артефактом
+          "&lt;node.id&gt;_verdict" (derived_from = принятый code-артефакт).
+          Не-артефакт или VERDICT_UNPARSEABLE от judge → NODE_FAILED.
+          Узел с wiki_refs_from (FR-19/FR-21): перед запуском оркестратор резолвит
+          последнюю версию артефакта-источника (TSK-0204 → TSK-0202), TSK-1604
+          парсит refs; ИТОГОВЫЕ ссылки узла = статические wiki_refs + динамические
+          (union; дедупликацию делает бандл TSK-1602); артефакт отсутствует в сторе
+          или WIKI_REFS_SOURCE_UNPARSEABLE → NODE_FAILED(node_id, причина).
+        </algorithm>
+      </task>
+      <task id="TSK-0902">
+        <purpose>Функция перехода FSM (чистая, табличная)</purpose>
+        <inputs>state: NodeState, event: Event</inputs>
+        <outputs>NodeState  <!-- явная таблица if-elif-else; недопустимая пара → INVALID_TRANSITION --></outputs>
+        <errors>INVALID_TRANSITION(state, event)</errors>
+      </task>
+      <task id="TSK-0905">
+        <purpose>Resume: продолжить пайплайн с первого незавершённого узла,
+                 не перегенерируя уже принятые артефакты</purpose>
+        <inputs>graph: GraphConfig, store: ArtifactStore, resume: bool
+                (флаг режима у TSK-0901)</inputs>
+        <outputs>Result[PipelineResult] — как TSK-0901; пропущенные узлы входят в
+                 accepted_artifacts своими загруженными версиями</outputs>
+        <errors>те же, что TSK-0901; + RESUME_STALE_UPSTREAM(node_id) — у пропускаемого
+                узла derived_from указывает на версию, которой нет в сторе</errors>
+        <algorithm>
+          Мотивация: упавший на узле N прогон сейчас перезапускается только целиком
+          (реальный случай: обрыв c4 по max_tokens — стадии до него были приняты).
+          1. Идём в топологическом порядке. Узел ПРОПУСКАЕТСЯ, если resume=true И
+             в сторе есть артефакт с именем узла (TSK-0204 → последняя версия) И
+             его derived_from резолвится в сторе (иначе RESUME_STALE_UPSTREAM).
+          2. Пропущенный узел: produced[node] = загруженный артефакт; гейты не выполняются
+             (артефакт был принят в исходном прогоне — принятие не повторяем).
+          3. ПЕРВЫЙ непропущенный узел и ВСЕ узлы после него выполняются живьём,
+             даже если у них есть старые версии в сторе (консистентность цепочки:
+             новый upstream ⇒ новая генерация, версии растут append-only).
+          4. CLI: `python -m workshop run --resume &lt;graph&gt; &lt;input&gt;` (TSK-0903).
+        </algorithm>
+      </task>
+      <task id="TSK-0903">
+        <purpose>CLI-вход: подкоманды `run` (пайплайн) и `extract` (распаковка артефакта);
+                 без подкоманды → интерактивное меню фабрики (TSK-1903)</purpose>
+        <inputs>argv: `python -m workshop run &lt;имя-цеха|graph.json&gt; &lt;input: файл|текст&gt;
+                [--autopilot]` (резолв имени — TSK-1901) |
+                `python -m workshop shops` (реестр цехов) |
+                `python -m workshop status [--project X]` (TSK-1902; без --project —
+                все каталоги projects/*) |
+                `python -m workshop run &lt;graph.json&gt; &lt;input: файл|текст&gt;
+                [--store DIR] [--log FILE]` |
+                `python -m workshop extract &lt;артефакт.xml&gt; &lt;каталог&gt;` (→ TSK-1102) |
+                `python -m workshop package &lt;graph.json&gt; [--out DIR] [--store DIR]
+                [--log FILE]` (→ TSK-1201; требует блок package в графе;
+                дефолт out: projects/&lt;project&gt;/package) |
+                `python -m workshop verify-acceptance &lt;каталог-цеха | CHANGELOG.md&gt;`
+                (→ TSK-1301; расхождение → exit 1) |
+                `python -m workshop assemble &lt;product.json&gt; [--out DIR]`
+                (→ TSK-1401; дефолт out: projects/&lt;product&gt;/product) |
+                `python -m workshop decompose &lt;graph.json&gt; [--store DIR] [--out DIR]`
+                (→ TSK-1502; дефолт out: projects/&lt;project&gt;/submodules) |
+                `python -m workshop wiki-check [--wiki DIR]`
+                (→ TSK-1603 по всем страницам + lint TSK-1602 + orphan TSK-1605;
+                битая ссылка, страница с "{{", директория без index.md
+                или страница-сирота → exit 1) |
+                `python -m workshop wiki-render [--wiki DIR] [--out DIR]` (→ TSK-1701) |
+                `python -m workshop wiki-apply &lt;артефакт-файл&gt; [--wiki DIR]
+                [--spec FILE]` (→ TSK-1801; --spec — артефакт wiki_spec для
+                материализации страницы-исходника &lt;source_page&gt;;
+                печатает changelog_rows; отказ → exit 1).
+                run дополнительно принимает --project (переопределение project графа —
+                для дочерних прогонов FR-15).
+                Дефолты run: при project в графе — projects/&lt;project&gt;/artifacts и
+                projects/&lt;project&gt;/runs/log.jsonl; без project — artifacts/ и
+                runs/log.jsonl; явные --store/--log всегда сильнее.
+                При старте подгружается ./.env (KEY=VALUE; уже заданное окружение
+                НЕ перекрывается)</inputs>
+        <outputs>exit 0 + список принятых артефактов и путь журнала;
+                 exit 1 + код/причина остановки в stderr</outputs>
+        <errors>коды пайплайна TSK-0901 и конфигов TSK-0102 транслируются в stderr + exit 1</errors>
+      </task>
+    </module>
+
+    <module id="M-10" name="sandbox">
+      <responsibility>Изолированный запуск кода и тестов в Docker</responsibility>
+      <covers>FR-10</covers>
+      <task id="TSK-1001">
+        <purpose>Выполнить команду над набором файлов в контейнере</purpose>
+        <inputs>image: str, files: dict[path, content], command: str,
+                limits: {timeout_s, mem_mb, network: off}</inputs>
+        <outputs>Result[ExecReport(exit_code, stdout, stderr, duration_s)]
+                 <!-- WHY: ненулевой exit_code — валидный Ok-результат (упавшие тесты),
+                      Err — только отказ самой песочницы --></outputs>
+        <errors>DOCKER_UNAVAILABLE; IMAGE_UNAVAILABLE; SANDBOX_TIMEOUT;
+                SANDBOX_INVALID_PATH <!-- пути файлов генерирует LLM — недоверенный ввод,
+                выход за пределы рабочего каталога отклоняется --></errors>
+      </task>
+    </module>
+
+    <module id="M-11" name="codegen_loop">
+      <responsibility>Цикл кодогенерации: генерация → прогон тестов → улучшение</responsibility>
+      <covers>FR-08, FR-09, FR-10</covers>
+      <task id="TSK-1101">
+        <purpose>Получить код модулей с проходящими тестами</purpose>
+        <inputs>config: NodeConfig(codegen stage-карта), c4: Artifact, max_iterations: int,
+                initial_context: str | None (правки HITL из внешнего цикла TSK-0901)</inputs>
+        <outputs>Result[CodeArtifact(files: dict[path, content], test_report)]</outputs>
+        <errors>OUTPUT_UNPARSEABLE(нет file map); MAX_ITERATIONS_EXCEEDED;
+                + ошибки M-06 и M-10</errors>
+        <algorithm>
+          0. формат file map в ответе LLM: fenced-блоки ```file:&lt;путь&gt; ... ```;
+             закрывающим считается ``` только перед следующим ```file: или концом
+             ответа — вложенные fenced-блоки ВНУТРИ файла допустимы (страницы wiki
+             с примерами кода, FR-21); сериализация/парсинг — roundtrip
+          1. TSK-0601 мастерская выдаёт file map (код независимых модулей + тесты к ним)
+          2. TSK-1001 pytest в песочнице
+          3. exit_code=0 → Ok; иначе iteration_context ← rework-контекст:
+             &lt;previous_artifact&gt; (сериализованный file map этой итерации) +
+             &lt;test_report&gt; (exit_code, stdout, stderr) — кодогенератор правит
+             затронутые файлы, нетронутые копирует дословно; goto 1
+          4. iteration > max_iterations → Err → эскалация в HITL (оркестратором)
+        </algorithm>
+      </task>
+      <task id="TSK-1102">
+        <purpose>Распаковать file map артефакта в каталог (код как обычные файлы)</purpose>
+        <inputs>content: str (сериализованный file map), out_dir: Path</inputs>
+        <outputs>Result[list[записанных путей]]
+                 <!-- WHY: сперва валидация ВСЕХ путей, потом запись —
+                      инвалидный путь не оставляет частичного результата --></outputs>
+        <errors>NO_FILE_BLOCKS; EXTRACT_INVALID_PATH(выход за out_dir — пути из LLM);
+                EXTRACT_TARGET_EXISTS(перезапись запрещена); EXTRACT_IO_ERROR</errors>
+      </task>
+    </module>
+
+    <module id="M-12" name="packager">
+      <responsibility>Сборка выходного пакета проекта из принятых артефактов (FR-13)</responsibility>
+      <covers>FR-13</covers>
+      <task id="TSK-1201">
+        <purpose>Собрать пакет: код + git + frozen deps + Dockerfile/compose + README +
+                 CHANGELOG + отчёт о работах. Детерминированная сборка БЕЗ LLM:
+                 пакет — следствие уже принятых артефактов</purpose>
+        <inputs>store: ArtifactStore, spec: PackageSpec(code_node, image, serve?,
+                test_command, ports[]), project: str, log_path: Path, out_dir: Path,
+                sandbox (DI, для pip freeze)</inputs>
+        <outputs>Result[PackageReport(out_dir, files[], git_commit)]</outputs>
+        <errors>PACKAGE_TARGET_EXISTS(каталог непуст); PACKAGE_NO_CODE_ARTIFACT(code_node);
+                PACKAGE_NO_RUN_LOG(путь); NO_FILE_BLOCKS(из TSK-1102);
+                FREEZE_FAILED(pip freeze exit≠0); PACKAGE_IO_ERROR;
+                GIT_FAILED(git отсутствует или коммит не прошёл); + ошибки M-10</errors>
+        <algorithm>
+          1. out_dir пуст или отсутствует, иначе PACKAGE_TARGET_EXISTS (не перезаписываем)
+          2. TSK-0204 latest code_node → TSK-1102 extract в out_dir
+          3. requirements.txt = pip freeze В ОБРАЗЕ ПЕСОЧНИЦЫ (среда, где тесты зелёные)
+          4. ЕСЛИ spec.serve задан → Dockerfile (FROM image, COPY, CMD serve) +
+             docker-compose.yml (build ., command, ports); ИНАЧЕ пропустить
+          5. CHANGELOG.md = TSK-0205 по стору (имя, версия, derived_from)
+          6. report.md = свод журнала прогонов (узел → итерации → модель) +
+             вердикт из &lt;code_node&gt;_verdict через TSK-0703, если есть
+          7. README.md: детерминированный шаблон (проект, состав, quickstart:
+             тесты/запуск, происхождение из артефактов)
+          8. git init + add -A + commit (идентичность agent-workshop) → hash коммита
+        </algorithm>
+      </task>
+    </module>
+    <module id="M-13" name="acceptance">
+      <responsibility>Механический гейт приёмки FR-17: файлы цеха соответствуют
+                      последней HITL-приёмке в CHANGELOG</responsibility>
+      <covers>FR-17</covers>
+      <task id="TSK-1301">
+        <purpose>Сверить sha256 файлов цеха с приёмочными записями CHANGELOG</purpose>
+        <inputs>changelog_path: Path (пути в таблицах — относительно его каталога)</inputs>
+        <outputs>Result[AcceptanceReport(matched[], mismatched[], missing[])];
+                 файл в нескольких записях → действует hash ПОЗДНЕЙ (свежая приёмка);
+                 значение `removed` вместо hash снимает путь с проверки
+                 (переезд/удаление файла фиксируется записью, а не правкой истории)</outputs>
+        <errors>CHANGELOG_NOT_FOUND; NO_ACCEPTED_FILES(нет ни одной приёмочной строки)</errors>
+        <algorithm>
+          1. Собрать из всех записей CHANGELOG строки таблиц вида
+             | `путь` | роль | `sha256[:16]` |; поздние записи перекрывают ранние.
+          2. Для каждого файла: отсутствует → missing; sha256[:16] совпал → matched;
+             иначе → mismatched.
+          3. Отчёт чист ⇔ mismatched и missing пусты. Правка без новой записи
+             в CHANGELOG обнаруживается механически, а не дисциплиной.
+        </algorithm>
+      </task>
+    </module>
+    <module id="M-14" name="assembler">
+      <responsibility>Adapters: сборка целевого продукта из независимых
+                      сервисов-пакетов (FR-14, вариант A — compose-уровень)</responsibility>
+      <covers>FR-14</covers>
+      <task id="TSK-1401">
+        <purpose>Собрать продукт: пакеты сервисов + общий docker-compose + README + git.
+                 Детерминированная сборка без LLM</purpose>
+        <inputs>spec: ProductSpec (из TSK-0104), out_dir: Path</inputs>
+        <outputs>Result[ProductReport(out_dir, services[], git_commit)]</outputs>
+        <errors>PRODUCT_TARGET_EXISTS; SERVICE_PACKAGE_NOT_FOUND(имя);
+                SERVICE_NO_DOCKERFILE(имя — пакет без serve не собирается в продукт);
+                PRODUCT_IO_ERROR; GIT_FAILED</errors>
+        <algorithm>
+          1. out_dir пуст или отсутствует, иначе PRODUCT_TARGET_EXISTS
+          2. валидация ВСЕХ пакетов до первого копирования (нет частичного результата)
+          3. каждый пакет → services/&lt;name&gt;/ БЕЗ его .git (у продукта свой git)
+          4. docker-compose.yml: build ./services/&lt;name&gt;, ports, environment,
+             depends_on — детерминированный рендер (сортировка ключей)
+          5. README.md продукта: состав, происхождение пакетов, quickstart compose up
+          6. git init + commit → hash
+        </algorithm>
+      </task>
+    </module>
+    <module id="M-15" name="decomposer">
+      <responsibility>Рекурсивная декомпозиция: подмодули-проекты из доменов
+                      принятого domains.xml (FR-15, один уровень)</responsibility>
+      <covers>FR-15</covers>
+      <task id="TSK-1501">
+        <purpose>Распарсить domains.xml: домены (id, name, covers) и рёбра
+                 relationships (from, to, kind, via) — чистая функция</purpose>
+        <inputs>content: str (артефакт domains)</inputs>
+        <outputs>Result[(list[DomainInfo], list[DomainEdge])]</outputs>
+        <errors>DECOMPOSE_NO_DOMAINS(нет ни одного &lt;domain id=&gt;)</errors>
+      </task>
+      <task id="TSK-1502">
+        <purpose>Породить подмодули: входной материал per домен + черновик product.json</purpose>
+        <inputs>store: ArtifactStore (latest domains + latest input=requirements),
+                project: str, out_dir: Path</inputs>
+        <outputs>Result[DecomposeReport(submodules[], product_spec_path, uncovered_frs[])]
+                 <!-- WHY: FR без домена — не Err (гейты стадий ловят раньше),
+                      но декомпозитор обязан не молчать --></outputs>
+        <errors>DECOMPOSE_TARGET_EXISTS; DECOMPOSE_IO_ERROR;
+                + ARTIFACT_NOT_FOUND (нет domains/input в сторе); + TSK-1501</errors>
+        <algorithm>
+          1. out_dir пуст или отсутствует, иначе DECOMPOSE_TARGET_EXISTS
+          2. per домен: submodules/&lt;name&gt;/input.xml = вырезка FR-блоков по covers
+             + ВСЕ NFR (применимы каждому подмодулю) + блок домена + интерфейсы:
+             ребро from→to ⇒ у to &lt;provides via to=from&gt;, у from &lt;consumes via from=to&gt;
+          3. product.json (черновик FR-14): сервис per домен (имя: подчёркивания→дефисы),
+             package = projects/&lt;project&gt;-&lt;имя&gt;/package; из рёбер: у from-сервиса
+             env &lt;TO&gt;_URL=http://&lt;to&gt;:8000 и depends_on
+          4. дочерний прогон: `workshop run цех.json submodules/&lt;name&gt;/input.xml
+             --project &lt;project&gt;-&lt;имя&gt;` (переопределение project — TSK-0903)
+        </algorithm>
+      </task>
+    </module>
+    <module id="M-16" name="wiki_loader">
+      <responsibility>Загрузка страниц wiki-базы знаний, сборка контекстных
+                      бандлов и валидация перекрёстных ссылок</responsibility>
+      <covers>FR-18, FR-19, NFR-03</covers>
+      <task id="TSK-1601">
+        <purpose>Разрешить wiki-ссылку в текст страницы</purpose>
+        <inputs>root: Path (корень wiki/), ref: str — путь страницы .md
+                или директории (директория разрешается в её index.md)</inputs>
+        <outputs>Result[str] — содержимое страницы</outputs>
+        <errors>WIKI_PAGE_NOT_FOUND(ref); WIKI_IO_ERROR</errors>
+      </task>
+      <task id="TSK-1602">
+        <purpose>Собрать бандл страниц для INPUTS узла (NFR-03: только запрошенные
+                 страницы; явный отказ вместо тихого переполнения контекста)</purpose>
+        <inputs>root: Path, refs: list[str] (страницы и/или директории; директория =
+                все её .md отсортированно, index.md первым), limit_chars: int</inputs>
+        <outputs>Result[str] — страницы с разделителями "=== wiki: путь ==="
+                 в порядке refs; дубликат пути включается один раз;
+                 пустой refs → Ok("")</outputs>
+        <errors>WIKI_PAGE_NOT_FOUND; WIKI_PAGE_INVALID(путь — литеральные "{{"
+                уронят сборку M-03 ошибкой UNRESOLVED_PLACEHOLDER, ловим раньше);
+                WIKI_BUNDLE_TOO_LARGE(размер, лимит); WIKI_IO_ERROR</errors>
+      </task>
+      <task id="TSK-1603">
+        <purpose>Проверить перекрёстные ссылки страницы (аналог TSK-0203 для wiki)</purpose>
+        <inputs>root: Path, page_ref: str</inputs>
+        <outputs>Result[WikiLinkReport(broken_links[])]
+                 <!-- WHY: битая ссылка — содержимое отчёта, не Err (образец TSK-0203) --></outputs>
+        <errors>WIKI_PAGE_NOT_FOUND(page_ref); WIKI_IO_ERROR</errors>
+      </task>
+      <task id="TSK-1604">
+        <purpose>Распарсить артефакт-источник динамических wiki-ссылок
+                 (чистая функция; вход для wiki_refs_from)</purpose>
+        <inputs>content: str — артефакт tech_selection (&lt;tech ref="..."&gt;)
+                ИЛИ wiki_spec (&lt;page path="..." action="update"&gt; —
+                текущий текст обновляемых страниц нужен генератору, FR-21)</inputs>
+        <outputs>Result[list[str]] — refs в порядке документа; распознанные
+                 элементы есть, но update-страниц нет (все add) → Ok([]) —
+                 легально пусто</outputs>
+        <errors>WIKI_REFS_SOURCE_UNPARSEABLE(нет ни одного распознанного
+                элемента — ни tech ref, ни page)</errors>
+      </task>
+      <task id="TSK-1605">
+        <purpose>Orphan-детектор: страницы, не упомянутые ни в одном index.md
+                 (механическая проверка заполнения индексов, FR-21)</purpose>
+        <inputs>root: Path</inputs>
+        <outputs>Result[list[str]] — пути страниц-сирот (кроме КОРНЕВОГО index.md,
+                 корневого CHANGELOG.md — приёмочный журнал FR-21 не страница
+                 знаний — assets/ и страниц *.source.md — вербатим-приложения
+                 TSK-1801, достижимы ссылкой из парной страницы, в индексы
+                 не вносятся): index.md области — тоже страница и должен
+                 быть упомянут из индекса выше; ссылка на директорию
+                 засчитывается её index.md</outputs>
+        <errors>WIKI_IO_ERROR</errors>
+      </task>
+      <task id="TSK-1606">
+        <purpose>Листинг дерева wiki для контекста узла: пути всех страниц
+                 БЕЗ содержимого (видимость реального дерева ревьюеру ссылок —
+                 аудит 2026-07-10: ревью wiki_pages браковало ссылки на страницы,
+                 применённые прошлыми прогонами, т.к. видело только индексы
+                 из wiki_refs и file map)</purpose>
+        <inputs>root: Path (корень wiki/)</inputs>
+        <outputs>Result[str] — блок «=== wiki tree ===» + отсортированные
+                 относительные пути всех *.md (posix); пустая wiki →
+                 только заголовок блока</outputs>
+        <errors>WIKI_PAGE_NOT_FOUND(root — каталог не существует;
+                тихий пустой листинг замаскировал бы опечатку в конфиге);
+                WIKI_IO_ERROR</errors>
+      </task>
+      <notes>Формат wiki — Markdown + Mermaid (решение автора, 09.07.2026, §10 №11:
+             HTML в контексте узла интерферирует с XML-зонами промптов).
+             Верхний уровень — области знаний (§10 №12); обязательный index.md
+             в каждой директории; глубина ≤ 3; перекрёстные ссылки — относительные
+             MD-ссылки + секция related.</notes>
+    </module>
+    <module id="M-17" name="wiki_renderer">
+      <responsibility>Детерминированная HTML-витрина wiki для человека (без LLM)</responsibility>
+      <covers>FR-20</covers>
+      <task id="TSK-1701">
+        <purpose>Отрендерить wiki в статический HTML-сайт (Mermaid — client-side,
+                 assets копируются; источником остаётся Markdown)</purpose>
+        <inputs>root: Path, out_dir: Path</inputs>
+        <outputs>Result[RenderReport(out_dir, pages[], broken_links[])]
+                 <!-- WHY: битые ссылки — в отчёт (TSK-1603), рендер не прерывают --></outputs>
+        <errors>RENDER_TARGET_EXISTS(каталог непуст); RENDER_IO_ERROR</errors>
+      </task>
+    </module>
+    <module id="M-18" name="wiki_applier">
+      <responsibility>Применение принятого file map страниц к wiki: валидация,
+                      проверки, атомарная запись, приёмочные строки (FR-21;
+                      детерминированный шаг без LLM — файлы следствие артефактов)</responsibility>
+      <covers>FR-21</covers>
+      <task id="TSK-1801">
+        <purpose>Наложить file map артефакта wiki_pages на wiki с полной проверкой;
+                 при спеке с &lt;source_page&gt; — детерминированно материализовать
+                 страницу-исходник из &lt;source_request&gt; (запрос автора 2026-07-11:
+                 пересказ + вербатим-исходник, ссылка из пересказа)</purpose>
+        <inputs>content: str (сериализованный file map), wiki_root: Path,
+                spec_content: str | None = None (артефакт wiki_spec; None —
+                прежнее поведение без страницы-исходника)</inputs>
+        <outputs>Result[ApplyReport(written[], changelog_rows[])] —
+                 changelog_rows: готовые строки приёмочной таблицы
+                 | `путь` | — | `sha256[:16]` | для wiki/CHANGELOG.md</outputs>
+        <errors>NO_FILE_BLOCKS(из M-11); APPLY_INVALID_PATH(выход за wiki_root —
+                пути из LLM); SOURCE_SPEC_INVALID(в spec_content есть
+                &lt;source_page&gt;, но path без суффикса .source.md ИЛИ
+                &lt;source_request&gt; пуст/отсутствует);
+                WIKI_CHECK_FAILED(список проблем: нет index.md,
+                битые ссылки, "{{", страницы-сироты TSK-1605);
+                APPLY_IO_ERROR</errors>
+        <algorithm>
+          1. Парсинг file map (формат M-11); пусто → NO_FILE_BLOCKS.
+          1a. ЕСЛИ spec_content задан И содержит <source_page path= for=> →
+              извлечь <source_request> ВЕРБАТИМ; path обязан оканчиваться
+              на .source.md (иначе SOURCE_SPEC_INVALID); файл =
+              заголовок-провенанс + вербатим; кладётся в files ПОСЛЕ парсинга
+              file map (детерминированная версия перекрывает LLM-версию).
+              Нет <source_page> → шаг пропускается.
+          2. Все пути резолвятся ВНУТРИ wiki_root, иначе APPLY_INVALID_PATH
+             (валидация ДО любой записи — нет частичного результата).
+          3. Временная копия wiki + наложение file map (перезапись разрешена —
+             правка страниц и индексов; механизма удаления нет по построению).
+          4. Полный wiki-check по копии: index.md в каждой директории, кросс-ссылки
+             (TSK-1603), lint "{{", orphan-детектор (TSK-1605).
+             Страницы *.source.md — вербатим-приложения: проверки содержимого
+             (ссылки, "{{", сироты) к ним НЕ применяются; достижимость
+             обеспечивает обязательная ссылка из парной страницы (гейт ревью
+             wiki_pages цеха). Проблемы → WIKI_CHECK_FAILED, реальная wiki НЕ тронута.
+          5. Запись файлов в wiki_root; changelog_rows по фактически записанному.
+        </algorithm>
+      </task>
+    </module>
+    <module id="M-19" name="factory_cli">
+      <responsibility>CLI-фасад фабрики: реестр цехов, статус проектов,
+                      интерактивное меню (FR-22; stdlib, без TUI-библиотек)</responsibility>
+      <covers>FR-22</covers>
+      <task id="TSK-1901">
+        <purpose>Обнаружить цеха фабрики (реестр для shops / run-по-имени / меню)</purpose>
+        <inputs>configs_root: Path (дефолт configs/)</inputs>
+        <outputs>Result[list[ShopInfo(name=имя директории, graph_path,
+                 autopilot_path: str | None, project: str | None,
+                 stages: [(id, kind, гейты)], error: str | None)]]
+                 <!-- WHY: битый graph.json одного цеха НЕ валит реестр —
+                      цех попадает в список с error, остальные работают --></outputs>
+        <errors>SHOPS_ROOT_NOT_FOUND(configs_root отсутствует)</errors>
+      </task>
+      <task id="TSK-1902">
+        <purpose>Сводный статус проекта: артефакты стора + агрегат журнала</purpose>
+        <inputs>project_dir: Path (projects/&lt;имя&gt;)</inputs>
+        <outputs>Result[ProjectStatus(artifacts: [(имя, макс.версия)],
+                 journal: [(узел, макс.итерация)] по log.jsonl | пусто)]</outputs>
+        <errors>PROJECT_NOT_FOUND(нет каталога)</errors>
+      </task>
+      <task id="TSK-1903">
+        <purpose>Интерактивное меню фабрики (запуск без подкоманды)</purpose>
+        <inputs>shops: list[ShopInfo], input_fn/print_fn (DI — тестируемость,
+                образец CliHITL), runner: Callable (запуск цеха)</inputs>
+        <outputs>int (exit code): цикл «действие → выполнение → меню» до выхода;
+                 действия: запустить цех (выбор цеха, режим autopilot при наличии,
+                 вход текстом или путём), статус проектов, wiki-check, выход</outputs>
+        <errors>нет (EOF/Ctrl-C → выход 0; ошибки действий печатаются, цикл живёт)</errors>
+      </task>
+      <notes>Запуск цеха по имени: `run &lt;имя|путь&gt;` — если аргумент не файл
+             и имя есть в реестре → configs/&lt;имя&gt;/graph.json
+             (--autopilot → graph.autopilot.json). HITL-вывод (M-08):
+             отчёты гейтов печатаются ПЕРЕД артефактом.</notes>
+    </module>
+    <module id="M-20" name="mcp_server">
+      <responsibility>MCP-сервер фабрики: асинхронные прогоны с дистанционным
+                      HITL и инструменты поверх фабрики (FR-23)</responsibility>
+      <covers>FR-23</covers>
+      <task id="TSK-2001">
+        <purpose>RunManager: реестр асинхронных прогонов + HITL поверх очередей</purpose>
+        <inputs>start_run(shop: ShopInfo, input_material: str,
+                mode: interactive|autopilot, project: str | None);
+                get_state(run_id); pending(run_id); decide(run_id, decision)</inputs>
+        <outputs>start_run → Result[run_id]; get_state → Result[RunState:
+                 running | awaiting_decision | awaiting_answer |
+                 done(артефакты) | rejected(причина — REJECTED_BY_USER это
+                 решение пользователя, не сбой) | failed(код, причина);
+                 для живых статусов — последний узел/итерация ПО ЖУРНАЛУ прогона
+                 (записи после offset старта: журнал project общий, прошлые
+                 прогоны не подмешиваются)];
+                 pending → Result[PendingInteraction(вид, отчёты+артефакт | вопрос)];
+                 decide → Result[None] — решение уходит в очередь QueueHITL
+                 <!-- WHY: QueueHITL реализует Protocol M-08: request_acceptance/
+                      ask_clarification публикуют pending и БЛОКИРУЮТСЯ на
+                      queue.get() — оркестратор не меняется вовсе --></outputs>
+        <errors>RUN_IN_PROGRESS(project — уже есть живой прогон);
+                UNKNOWN_RUN(run_id); NO_PENDING_INTERACTION(run_id);
+                WRONG_DECISION_KIND(answer на гейт / accept на вопрос)</errors>
+      </task>
+      <task id="TSK-2002">
+        <purpose>Слой инструментов MCP поверх фабрики (12 инструментов из FR-23)</purpose>
+        <inputs>реестры фабрики (TSK-1901, projects/*), RunManager (TSK-2001),
+                стор (M-02), wiki (M-16, M-18), приёмка (M-13)</inputs>
+        <outputs>FastMCP-сервер с инструментами list_shops, run_shop, run_status,
+                 get_pending_interaction, submit_decision, list_artifacts,
+                 get_artifact, project_status, verify_acceptance,
+                 wiki_update (прогон wiki_maintainer autopilot + авто-apply +
+                 запись CHANGELOG — синхронно), wiki_read, wiki_check.
+                 Ошибки Result — текстом без трейсбеков; описания инструментов —
+                 TRIGGER/SKIP по методологии прожарки</outputs>
+        <errors>UNKNOWN_SHOP(имя не в реестре); UNKNOWN_PROJECT(нет в projects/);
+                WIKI_REF_ESCAPES_ROOT(ref выходит за корень wiki — недоверенный
+                ввод внешней LLM);
+                INPUT_FILE_FORBIDDEN(input_material похож на путь, но файл вне
+                корня фабрики или скрытый — .env и т.п. читать запрещено;
+                существующий разрешённый файл читается как в CLI: смоук MCP
+                09.07.2026 показал, что клиенты передают пути — без резолва
+                конвейер получает строку пути вместо ТЗ);
+                + коды обёрнутых задач фабрики</errors>
+      </task>
+      <task id="TSK-2003">
+        <purpose>CLI-вход сервера: `python -m workshop mcp-serve` (stdio)</purpose>
+        <inputs>argv (без аргументов; .env подхватывается как у run)</inputs>
+        <outputs>блокирующий stdio-serve до EOF клиента; exit 0</outputs>
+        <errors>нет (ошибки инструментов уходят клиенту ответами MCP)</errors>
+      </task>
+      <notes>Секреты (.env) не покидают процесс сервера. wiki_update — синхронный
+             (по ТЗ FR-23: ответ — применённые страницы); известный риск —
+             таймаут MCP-клиента на долгих прогонах, зафиксирован к наблюдению.</notes>
+    </module>
+    <module id="M-21" name="web_search">
+      <responsibility>Веб-поиск как инструмент узла: клиент провайдера
+                      и реестр инструментов для tool-calling (TSK-0402)</responsibility>
+      <covers>инструменты агентов в цехах (запрос автора 2026-07-10)</covers>
+      <task id="TSK-2101">
+        <purpose>Клиент веб-поиска (провайдер MVP — Tavily; решение автора
+                 2026-07-10: LLM-ориентированные сниппеты, REST без SDK)</purpose>
+        <inputs>query: str, max_results: int (1..10); ключ ТОЛЬКО из
+                TAVILY_API_KEY (.env.example, как OPENAI_API_KEY в M-04)</inputs>
+        <outputs>Result[str] — нумерованные результаты «заголовок / URL / сниппет»
+                 (+ answer провайдера первой строкой, если есть);
+                 пусто → Ok("Ничего не найдено.")</outputs>
+        <errors>SEARCH_KEY_MISSING; SEARCH_TIMEOUT; SEARCH_PROVIDER_ERROR
+                (HTTP не-200, невалидный JSON, сетевые).
+                FakeSearch — тот же интерфейс для тестов (образец FakeLLM)</errors>
+      </task>
+      <task id="TSK-2102">
+        <purpose>Реестр инструментов узла: имена из config.tools → ToolSpec
+                 для TSK-0402 (схема + исполнитель)</purpose>
+        <inputs>names: list[str] (из NodeConfig.tools),
+                search: SearchClient | None (None → TavilySearch; инъекция в тестах)</inputs>
+        <outputs>Result[list[ToolSpec]] — для "web_search": схема
+                 (query обязателен, max_results опционален) и исполнитель;
+                 исполнитель ошибки поиска возвращает ТЕКСТОМ
+                 («ОШИБКА ПОИСКА …») — сбой провайдера не роняет прогон (TSK-0402);
+                 пустой names → Ok([])</outputs>
+        <errors>UNKNOWN_TOOL(имя — опечатка в конфиге узла ловится до вызова LLM)</errors>
+      </task>
+      <notes>Один инструмент — один чёткий контракт; исполнитель без побочных
+             эффектов кроме сетевого чтения. Расширение реестра = новая задача
+             модуля (web_fetch и т.п. — вне текущего скоупа).</notes>
+    </module>
+
+    <module id="M-22" name="material">
+      <responsibility>Материал цеха как чанк-стор: инжест (текст + URL),
+                      оглавление, ретривер и инструменты маршрутизации по
+                      материалу (задел RAG)</responsibility>
+      <covers>цех llm_wiki «вики из чатов» (запрос автора 10.07.2026):
+              большие входы дробятся на чанки, узлы читают материал адресно</covers>
+      <task id="TSK-2201">
+        <purpose>Инжест материала: строки-URL скачиваются (httpx, лимит размера),
+                 остальной текст — inline-документ; каждый документ чанкуется
+                 по markdown-заголовкам с жадной упаковкой до chunk_chars
+                 (переросший блок режется жёстко); id чанков стабильны d&lt;N&gt;:&lt;NN&gt;</purpose>
+        <inputs>raw: str; chunk_chars: int (дефолт 4000);
+                fetcher: Fetcher | None (None → HttpxFetcher; инъекция в тестах,
+                образец SearchClient TSK-2101)</inputs>
+        <outputs>Result[MaterialStore] — chunks: [Chunk(id, source, title, text)],
+                 total_chars: int; toc(): str — «id | источник | заголовок | размер»
+                 на чанк</outputs>
+        <errors>MATERIAL_EMPTY (пустой вход); MATERIAL_FETCH_FAILED(url, причина —
+                прогон падает явно, битую ссылку убирает пользователь);
+                MATERIAL_TOO_LARGE(документ &gt; лимита загрузки)</errors>
+      </task>
+      <task id="TSK-2202">
+        <purpose>Ретривер по чанкам за протоколом Retriever — seam для RAG:
+                 MVP LexicalRetriever (скоринг = сумма вхождений токенов запроса,
+                 детерминированный tie-break порядком чанков); инструменты узла
+                 material_search(query, max_chunks) и material_get(chunk_id)</purpose>
+        <inputs>store: MaterialStore; аргументы вызовов инструментов от LLM</inputs>
+        <outputs>build_material_tools(store) → list[ToolSpec];
+                 material_search: топ-k «id | заголовок | фрагмент», нули отброшены,
+                 пусто → «Ничего не найдено»; material_get: полный текст чанка</outputs>
+        <errors>Err нет — сбои аргументов возвращаются ТЕКСТОМ
+                («ОШИБКА ИНСТРУМЕНТА: пустой query / неизвестный chunk_id»),
+                модель продолжает (контракт TSK-0402/TSK-2102)</errors>
+      </task>
+      <task id="TSK-2203">
+        <purpose>Обвязка пайплайна: материал инжестится один раз на прогон;
+                 маленький вход идёт узлам инлайном как раньше, большой
+                 заменяется оглавлением + инструкцией читать через material_*</purpose>
+        <inputs>GraphConfig.material: {chunk_chars: 4000,
+                inline_limit_chars: 12000} | None (None — поведение прежнее)</inputs>
+        <outputs>артефакт "input" в сторе = raw (воспроизводимость NFR-04);
+                 upstream первого узла = raw при total_chars ≤ inline_limit_chars,
+                 иначе toc(); run_workshop(material=...) собирает инструменты узла:
+                 web_search → M-21, material_* → M-22</outputs>
+        <errors>NODE_FAILED (material_* в config.tools узла, а блока material
+                в графе нет — ловится ДО вызова LLM); UNKNOWN_TOOL — как прежде</errors>
+      </task>
+      <task id="TSK-2204">
+        <purpose>Заимствование ailab №1: retry-стратегия поиска в ОПИСАНИИ
+                 инструмента (переформулируй → обобщи/сузь → после 3 неудач
+                 работай с оглавлением) + chunk_overlap при жёсткой нарезке
+                 переросших блоков (решения на границе чанков не теряются)</purpose>
+        <inputs>chunk_overlap: int (дефолт 400, 0 ≤ overlap &lt; chunk_chars) —
+                поле MaterialConfig и параметр ingest</inputs>
+        <outputs>жёсткая нарезка с шагом chunk_chars - overlap; упаковка целых
+                 блоков — без overlap (семантические единицы не режутся)</outputs>
+        <errors>CONFIG_INVALID (overlap ≥ chunk_chars — валидатор MaterialConfig)</errors>
+      </task>
+      <task id="TSK-2205">
+        <purpose>Заимствование ailab №2: адресная маршрутизация узла по wiki —
+                 стор чанков wiki-страниц + инструменты wiki_search(query)/
+                 wiki_get(page_path) вместо тотального бандла wiki_refs</purpose>
+        <inputs>корень wiki = NodeConfig.wiki_tree_root (уже есть, TSK-1606);
+                каждая страница *.md = документ, id чанка = &lt;путь&gt;:NN</inputs>
+        <outputs>build_wiki_tools(store) → [wiki_search, wiki_get];
+                 wiki_get возвращает страницу целиком (конвенция ≤80 строк);
+                 стор строится в _build_node_tools при первом запросе имён</outputs>
+        <errors>NODE_FAILED (wiki_* в tools узла без wiki_tree_root — до вызова
+                LLM); пустой корень/нет страниц — Err при сборке стора</errors>
+      </task>
+      <task id="TSK-2206">
+        <purpose>Векторная реализация Retriever по контракту bge-m3-service из
+                 smart-assistant (GET /metadata, POST /encode → items[].dense_vec):
+                 dense-эмбеддинги чанков и запроса, косинус, топ-k</purpose>
+        <inputs>env BGE_M3_SERVICE_URL (задан → векторный ретривер, пуст →
+                LexicalRetriever; образец ключей TAVILY_API_KEY);
+                encode-клиент инжектируется в тестах (образец FakeSearch)</inputs>
+        <outputs>эмбеддинги чанков считаются лениво при первом retrieve и
+                 кэшируются на время жизни стора; детерминированный порядок
+                 (score desc, порядок чанков asc)</outputs>
+        <errors>Err нет: недоступность сервиса → retrieve = [] и текстовая
+                 ошибка инструмента (узел не падает, контракт TSK-0402)</errors>
+      </task>
+      <task id="TSK-2207">
+        <purpose>Материал с литеральными двойными скобками (ревьюируемые промпты
+                 других проектов): TOC-строки санитизируются (скобки разбиваются
+                 пробелом — сборка M-03 не падает на leftover-скане), а
+                 inline_limit_chars=0 означает «всегда оглавлением» — сырой
+                 материал НИКОГДА не попадает в шаблон промпта</purpose>
+        <inputs>MaterialConfig.inline_limit_chars: int (ge=0; 0 — только TOC);
+                содержимое чанков доходит до модели через tool-результаты
+                (messages), минуя сборку шаблона — искажений нет</inputs>
+        <outputs>toc() без литеральных двойных скобок; полный текст чанка
+                 через material_get — дословный</outputs>
+        <errors>нет новых — санитизация детерминированная</errors>
+      </task>
+      <notes>Retriever намеренно за протоколом: векторный RAG = новая реализация
+             Retriever без изменения инструментов, узлов и цехов. Ревью-узлы
+             инструментов не получают (run_review без tools) — им материал
+             не нужен, проверяется артефакт.
+             ВНИМАНИЕ (10.07.2026): сам образ/сервис bge-m3 на машине автора
+             НЕ найден (в smart-assistant есть только клиент) — TSK-2206
+             готов к включению env-переменной, живой прогон ждёт сервиса.</notes>
+    </module>
+
+    <module id="M-23" name="map_driver">
+      <responsibility>Массовый прогон цеха по списку элементов: детерминированная
+                      нарезка источника, прогон пайплайна на элемент, resume,
+                      сводный отчёт</responsibility>
+      <covers>прожарка промптов smart-assistant и валидация таблиц schema.yaml
+              (запрос автора 11.07.2026); оркестратор M-09 НЕ меняется —
+              цикл живёт в драйвере</covers>
+      <task id="TSK-2301">
+        <purpose>Источники элементов: (а) файлы по glob — элемент = файл;
+                 (б) таблицы schema.yaml (PyYAML) — элемент = YAML-фрагмент
+                 одной таблицы + её карточка из table_cards (если есть)</purpose>
+        <inputs>files_pattern: str | schema_path: str (+ cards_dir: str | None)</inputs>
+        <outputs>Result[list[MapItem(slug, title, content)]] — slug стабилен
+                 (имя файла / schema.table), порядок сортирован; отсутствие
+                 карточки таблицы — пометка в content, не ошибка</outputs>
+        <errors>MAP_NO_ITEMS (пустой glob / нет таблиц);
+                MAP_SOURCE_INVALID (нечитаемый источник, битый YAML)</errors>
+      </task>
+      <task id="TSK-2302">
+        <purpose>Прогон цеха на каждый элемент: свой под-стор и журнал
+                 projects/&lt;project&gt;/map/&lt;slug&gt;/, пропуск уже принятых
+                 (resume), сводка map/summary.md (элемент → статус → находки)</purpose>
+        <inputs>graph: GraphConfig, items: list[MapItem], llm, hitl,
+                resume: bool, limit: int | None (обрезка списка для smoke)</inputs>
+        <outputs>Result[MapReport(rows: [(slug, status, details)], summary_path)];
+                 ошибка одного элемента НЕ останавливает остальные —
+                 статус failed в сводке</outputs>
+        <errors>MAP_NO_ITEMS — прокидывается из TSK-2301</errors>
+      </task>
+      <task id="TSK-2303">
+        <purpose>Детерминированные проверки таблицы ДО LLM (дёшево и точно):
+                 fact_metrics.column существует в columns; description и
+                 granularity непусты; columns непуст. Находки подмешиваются
+                 в content элемента блоком deterministic_findings и в сводку</purpose>
+        <inputs>table_def: dict (фрагмент schema.yaml одной таблицы)</inputs>
+        <outputs>list[str] — находки; пустой список = проверки пройдены</outputs>
+        <errors>нет — чистая функция над словарём</errors>
+      </task>
+      <task id="TSK-2304">
+        <purpose>Шаблонные дет-проверки: эталон структуры артефакта (YAML:
+                 required/optional ключи + nested-правила «для каждого значения
+                 словаря») → находки о пропусках и неизвестных ключах ДО LLM</purpose>
+        <inputs>data: dict; template: {required: [..], optional: [..],
+                nested: {ключ: {required, optional}}}; шаблоны грузятся из
+                --templates DIR (table.yaml, table_card.yaml, tool.yaml)</inputs>
+        <outputs>list[str] находок с указанием артефакта и ключа;
+                 неизвестный ключ = находка (дрейф формата ловится)</outputs>
+        <errors>MAP_SOURCE_INVALID (битый файл шаблона — при старте map)</errors>
+      </task>
+      <task id="TSK-2306">
+        <purpose>Параллельный прогон элементов: пул потоков (LLM-вызов —
+                 I/O-ожидание HTTP, GIL не мешает); элементы независимы
+                 (свой под-стор и журнал), сводка — в порядке элементов,
+                 не завершения</purpose>
+        <inputs>workers: int (дефолт 1, потолок 16); OpenAI-клиент
+                потокобезопасен (httpx), гонка ленивой инициализации
+                доброкачественна</inputs>
+        <outputs>строки MapReport в исходном порядке элементов; wall-clock
+                 ~ N/workers; workers=1 — поведение идентично последовательному</outputs>
+        <errors>MAP_PARALLEL_HITL (workers&gt;1 при hitl-гейте в графе —
+                интерактив в параллели невозможен; отказ ДО прогонов)</errors>
+      </task>
+      <task id="TSK-2305">
+        <purpose>Трёхсторонний элемент map: таблица schema.yaml + её
+                 MCP-инструменты из tools.yaml (по полю table) + карточка
+                 table_cards — кросс-несоответствия ищет LLM-узел, структуру
+                 проверяют шаблоны TSK-2304</purpose>
+        <inputs>--tools PATH (tools.yaml), --templates DIR — оба опциональны
+                и добавляются к --schema-tables/--table-cards</inputs>
+        <outputs>content элемента: YAML таблицы + инструменты (или пометка
+                 «инструментов НЕТ» — 38 тулов на 53 таблицы это норма) +
+                 карточка + deterministic_findings всех шаблонов</outputs>
+        <errors>MAP_SOURCE_INVALID (битый tools.yaml)</errors>
+      </task>
+      <notes>CLI: python -m workshop map &lt;цех&gt; (--files GLOB | --schema-tables
+             PATH [--table-cards DIR] [--tools PATH] [--templates DIR])
+             [--autopilot --resume --limit N].
+             Зависимость PyYAML — осознанное отступление от NFR-05: парсинг
+             schema.yaml вручную дороже и хрупче (прецедент mcp SDK §10 №15).</notes>
+    </module>
+
+    <module id="M-24" name="db_query">
+      <responsibility>Read-only запрос к БД как инструмент узла: сверка описаний
+                      таблиц с фактической структурой и значениями</responsibility>
+      <covers>пилот .workflow_ai / цех table_roaster (запрос автора 11.07.2026)</covers>
+      <task id="TSK-2401">
+        <purpose>Валидация и исполнение запроса: ТОЛЬКО одиночный SELECT
+                 (без ';', без DML/DDL — отказ ДО обращения к БД); LIMIT
+                 принудительно дописывается, если отсутствует; DSN ТОЛЬКО из
+                 env WORKSHOP_DB_DSN (образец TAVILY_API_KEY)</purpose>
+        <inputs>query: str; client: DbClient (Protocol; MVP — PsycopgClient,
+                Vertica — новая реализация того же Protocol; FakeDbClient
+                для тестов)</inputs>
+        <outputs>Result[str] — заголовок колонок + строки текстом,
+                 не больше LIMIT (дефолт 100)</outputs>
+        <errors>DB_DSN_MISSING; DB_QUERY_REJECTED(причина — не-SELECT,
+                мультистейтмент); DB_QUERY_FAILED(ошибка драйвера/таймаут)</errors>
+      </task>
+      <task id="TSK-2402">
+        <purpose>ToolSpec db_query для tool-цикла + wiring в workshop_node
+                 (имя "db_query" в config.tools); сбои — ТЕКСТОМ модели
+                 (контракт TSK-0402), включая отсутствие DSN</purpose>
+        <inputs>аргумент инструмента query: str</inputs>
+        <outputs>текстовый результат выборки; описание инструмента несёт
+                 TRIGGER/SKIP: только сверка факта с описанием, не аналитика</outputs>
+        <errors>Err нет — все сбои текстом</errors>
+      </task>
+      <notes>Зависимость psycopg (binary) — MVP-драйвер Postgres; Vertica
+             smart-assistant подключается новой реализацией DbClient без
+             изменения инструмента. Запросы к боевым БД — только read-only
+             DSN на стороне пользователя.</notes>
+    </module>
+  </modules>
+
+  <dependencies>  <!-- DAG; стрелка = «зависит от» -->
+    M-06 → M-01, M-02, M-03, M-04, M-05, M-16(build_bundle), M-21(build_tools),
+           M-22(build_material_tools)
+    M-07 → M-06
+    M-09 → M-01, M-06, M-07, M-08, M-16(parse_tech_stack), M-22(ingest)
+    M-11 → M-06, M-10
+    M-12 → M-02, M-07(parse_verdict), M-10, M-11(extract_files)
+    M-14 → M-01(TSK-0104), M-12(git_commit_dir)
+    M-17 → M-16(check_links)
+    M-18 → M-11(парсинг file map), M-16(check_links, find_orphans)
+    M-19 → M-01(load_graph_config), M-02(list_artifacts)
+    M-20 → M-02, M-08(Protocol), M-09(run_pipeline), M-13, M-16, M-18, M-19(TSK-1901/1902)
+    <!-- M-02, M-03, M-04, M-05, M-08, M-10, M-16 — листья без внутренних зависимостей -->
+  </dependencies>
+
+  <crosslinks>  <!-- требование → закрывающие модули -->
+    FR-01→M-03; FR-02→M-01,M-04,M-06; FR-03→M-09; FR-04→M-02; FR-05→M-07;
+    FR-06→M-08; FR-07→M-06,M-09; FR-08→M-11; FR-09→M-11; FR-10→M-10;
+    FR-11..FR-13→конфиги узлов поверх M-06/M-09 (кода не требуют);
+    FR-17→экземпляр цеха (stage-карты + wiki/), кода не требует;
+    FR-18→M-16 (+реструктуризация wiki/ по областям знаний);
+    FR-19→M-01,M-06,M-09,M-16 (+стадия tech_selection в конфигах цехов);
+    FR-20→M-17;
+    FR-21→M-16(TSK-1605),M-18 (+цех configs/wiki_maintainer + wiki/CHANGELOG.md);
+    FR-22→M-19 (+правка вывода M-08);
+    FR-23→M-20;
+    цех llm_wiki (запрос автора 10.07.2026)→M-22 (+конфиги configs/llm_wiki,
+    seed projects/llm_wiki/wiki, расширение GraphConfig в M-01/M-09);
+    NFR-01,NFR-02→M-02; NFR-03→M-03,M-06; NFR-04→M-05; NFR-05→весь план (11 модулей, без фреймворков)
+  </crosslinks>
+
+  <implementation_order>  <!-- цепочка A→B→C с verify на каждом шаге -->
+    1. M-01..M-03, M-05 (чистые, без сети)      → verify: unit-тесты, включая все ERRORS
+    2. M-04 (+FakeLLM)                          → verify: контрактные тесты интерфейса
+    3. M-06..M-08                               → verify: golden-прогон стадии domains
+                                                   на text_searcher/requirements.xml с FakeLLM
+    4. M-09                                     → verify: e2e мини-граф из 2 узлов с FakeLLM,
+                                                   включая циклы FAIL/REVISE/CLARIFICATION
+    5. M-10, M-11                               → verify: pytest игрушечного модуля в docker
+    6. цех data-аналитик: конфиги + FR-17 (шаблоны, wiki) → verify: критерии приёмки §9 постановки
+    7. M-16 + реструктуризация wiki/ (области    → verify: unit все ERRORS M-16; wiki-check чист;
+       знаний, index.md, related)                  verify-acceptance по новым записям CHANGELOG;
+                                                   smoke обоих цехов на FakeLLM зелёный
+    8. стадия tech_selection + wiki_refs_from    → verify: e2e data_analyst — по журналу в INPUTS
+       в конфигах цехов + judge-правило стека      executor только страницы выбранного стека;
+                                                   негативный: технология вне стека → NOT_READY
+    9. M-17 HTML-витрина (could, после 7–8)      → verify: рендер открывается, ссылки резолвятся,
+                                                   mermaid отображается
+    10. M-18 + TSK-1605 orphan-детектор + CLI    → verify: unit все ERRORS TSK-1801/1605;
+        wiki-apply                                 wiki-check текущей wiki чист (нет сирот);
+                                                   отказ apply не оставляет частичной записи
+    11. цех wiki_maintainer (конфиги, промпты,   → verify: e2e FakeLLM на реальных конфигах;
+        wiki/CHANGELOG.md)                         живой прогон «добавить технологию» до
+                                                   применённых файлов; verify-acceptance wiki/ чист
+    12. M-19 CLI фабрики + правка вывода M-08    → verify: unit TSK-1901/1902 (включая битый
+                                                   цех в реестре); скриптованное меню (DI input);
+                                                   run по имени на реальных configs/
+    13. M-20 MCP-сервер                          → verify: unit — полный HITL-цикл на FakeLLM
+                                                   через RunManager (гейт → решение → done,
+                                                   clarification → answer), все ERRORS
+                                                   TSK-2001/2002, эскейп wiki_read;
+                                                   smoke — stdio-клиент SDK: список
+                                                   инструментов + list_shops/project_status
+    14. M-22 material + обвязка M-06/M-09        → verify: unit все ERRORS TSK-2201/2203,
+                                                   детерминизм ретривера; e2e мини-граф
+                                                   с FakeLLM: большой вход → TOC в промпте,
+                                                   маленький → raw
+    15. цех llm_wiki (конфиги, промпты,          → verify: e2e FakeLLM на реальных конфигах;
+        seed projects/llm_wiki/wiki)               живой прогон на выгрузке чата до
+                                                   применённых страниц (wiki-apply --wiki)
+    16. TSK-2204..2206 заимствования ailab       → verify: unit overlap/wiki-стора/ретривера
+        (+wiki_search у wiki_maintainer.wiki_spec)  (fake encode-клиент); полный прогон тестов;
+                                                   живой smoke wiki_maintainer с wiki_search
+    17. M-23 map_driver + TSK-2207               → verify: unit все ERRORS TSK-2301/2302,
+                                                   дет.проверки TSK-2303, санитизация TOC,
+                                                   map на FakeLLM (2 элемента + resume-skip)
+    18. цеха prompt_roaster / table_validator    → verify: живой map --limit 1 на промпте
+                                                   smart-assistant и на таблице schema.yaml;
+                                                   отчёты читаемы, гейты работают
+    19. M-24 db_query + wiring                   → verify: unit все ERRORS TSK-2401 на
+                                                   FakeDbClient; без DSN — текст, узел жив
+    20. TSK-2304/2305 + roast_fix                → verify: unit шаблонов и join;
+                                                   map-тест с tools.yaml на FakeLLM
+    21. пилот .workflow_ai в smart-assistant     → verify: живой map table_roaster
+        (каркас, шаблоны, цеха, Makefile)          --limit 1 из .workflow_ai (cwd-режим);
+                                                   roast_fix одного промпта с HITL
+    22. TSK-2306 параллельный map                → verify: unit — порядок сводки при
+                                                   workers>1, отказ MAP_PARALLEL_HITL;
+                                                   живой map --workers 4 быстрее ×3+
+  </implementation_order>
+
+  <e2e_tests>
+    <golden>воспроизведение цепочки text_searcher: артефакты structurally-equal эталону</golden>
+    <e2e>цех data-аналитик на демо-CSV: от запроса до кода с проходящими тестами;
+         негативный прогон — испорченный артефакт не проходит гейт (§9.2)</e2e>
+  </e2e_tests>
+
+  <out_of_scope note="все could-требования постановки реализованы">
+    <!-- FR-14..FR-16 — после приёмки MVP (записи CHANGELOG цехов, 08.07.2026);
+         FR-20 HTML-витрина (M-17) — 09.07.2026 -->
+  </out_of_scope>
+
+</development_plan>

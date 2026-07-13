@@ -1,0 +1,23 @@
+<input>
+  <request>
+    Проанализируй продажи за квартал: посчитай выручку по категориям и по месяцам,
+найди топ-3 продукта по выручке и средний чек по регионам. Результаты нужны
+в виде таблиц для отчёта руководителю. Строки с пропусками в количестве или цене
+из расчётов исключай, но сообщай сколько их отброшено.
+  </request>
+  <dataset_profile csv="sales.csv" rows="28">
+    <column name="date" type="str" empty="0/28"/>
+    <column name="category" type="str" empty="0/28"/>
+    <column name="product" type="str" empty="0/28"/>
+    <column name="qty" type="int" empty="1/28"/>
+    <column name="price" type="int" empty="1/28"/>
+    <column name="region" type="str" empty="0/28"/>
+    <sample>
+      date=2026-01-05, category=electronics, product=phone_x1, qty=3, price=45000, region=msk
+      date=2026-01-07, category=electronics, product=laptop_a3, qty=1, price=92000, region=spb
+      date=2026-01-09, category=home, product=kettle_k2, qty=5, price=2500, region=msk
+      date=2026-01-12, category=electronics, product=phone_x1, qty=2, price=45000, region=ekb
+      date=2026-01-15, category=home, product=vacuum_v8, qty=1, price=18000, region=spb
+    </sample>
+  </dataset_profile>
+</input>

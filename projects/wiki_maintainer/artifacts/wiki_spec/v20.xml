@@ -1,0 +1,14 @@
+<wiki_change derived_from="input@v1">
+  <source_request>Добавь в область python карточку технологии httpx — современный HTTP-клиент для Python (sync/async). Материала нет. Перед составлением спеки проверь актуальную стабильную версию пакета httpx и правильное имя пакета на PyPI.</source_request>
+  <summary>Добавление карточки технологии httpx (v0.28.1) в область python: когда использовать / когда НЕ, шаблоны sync/async, интеграция с FastAPI.</summary>
+  <pages>
+    <page path="python/httpx/index.md" action="add" unverified="true">
+      <purpose>карточка технологии: когда использовать httpx / когда НЕ (против requests/aiohttp), шаблоны sync и async, good/bad примеры, интеграция с fastapi (TestClient), HTTP/2, версия 0.28.1</purpose>
+      <index_row>| [httpx](httpx/index.md) | `python/httpx` | современный HTTP-клиент (sync/async, HTTP/1.1, HTTP/2) | allowed |</index_row>
+      <related>python/index.md, python/fastapi/index.md</related>
+    </page>
+  </pages>
+  <index_updates>
+    <index path="python/index.md">добавить строку httpx в таблицу реестра (после строки duckdb)</index>
+  </index_updates>
+</wiki_change>

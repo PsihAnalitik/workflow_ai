@@ -1,0 +1,13 @@
+<verdict derived_from="analysis_spec.xml@1.0, executor@1.0">
+  <coverage>
+    <fr id="FR-01" status="covered" module="src/module_03.py::revenue_by_category" test="tests/test_module_03.py::test_revenue_by_category_happy_path"/>
+    <fr id="FR-02" status="covered" module="src/module_02.py::add_month, src/module_04.py::revenue_by_month" test="tests/test_module_02.py::test_add_month_happy_path, tests/test_module_04.py::test_revenue_by_month_happy_path"/>
+    <fr id="FR-03" status="covered" module="src/module_05.py::top_products" test="tests/test_module_05.py::test_top_products_happy_path"/>
+    <fr id="FR-04" status="covered" module="src/module_06.py::avg_check_by_region" test="tests/test_module_06.py::test_avg_check_by_region_happy_path"/>
+    <fr id="FR-05" status="covered" module="src/module_01.py::load_and_clean, src/module_07.py::build_report" test="tests/test_module_01.py::test_load_and_clean_discards_rows_with_nans, tests/test_module_07.py::test_build_report_full"/>
+  </coverage>
+  <decision>READY</decision>
+  <reasons>
+    <!-- Все FR с priority="must" покрыты кодом и тестами. Стек (pandas) соблюдён. -->
+  </reasons>
+</verdict>

@@ -1,0 +1,2 @@
+Обнови python/duckdb/index.md (action=update): в разделе «Когда использовать» в пункте про интеграцию с pandas замени устаревший идиом «duckdb.query("SELECT ... FROM df")» на официальный «duckdb.sql("SELECT ... FROM df")». Больше ничего на странице не меняй — остальное перенеси дословно.
+Материал: проверено 2026-07-10 по официальной документации duckdb 1.5.4 (duckdb.org/docs/current/guides/python/sql_on_pandas): канонический вызов — duckdb.sql; форма duckdb.query в официальных примерах Python API не используется.

@@ -1,0 +1,166 @@
+<analysis_spec derived_from="input@1">
+  <!-- Модифицирован на основе review‑находки F‑01: разделена ответственность MOD‑01 на очистку и подсчёт отброшенных строк. -->
+  <source_request>Проанализируй продажи за квартал: посчитай выручку по категориям и по месяцам,
+найди топ-3 продукта по выручке и средний чек по регионам. Результаты нужны
+в виде таблиц для отчёта руководителю. Строки с пропусками в количестве или цене
+из расчётов исключай, но сообщай сколько их отброшено.</source_request>
+
+  <dataset_summary>
+    <!-- WHY: Все колонки датасета необходимы для достижения целей G‑01–G‑04; отсутствуют неиспользуемые поля. -->
+    <column name="date" type="str" empty="0/28"/>
+    <column name="category" type="str" empty="0/28"/>
+    <column name="product" type="str" empty="0/28"/>
+    <column name="qty" type="int" empty="1/28"/>
+    <column name="price" type="int" empty="1/28"/>
+    <column name="region" type="str" empty="0/28"/>
+  </dataset_summary>
+
+  <goals>
+    <goal id="G-01">Получить суммарную выручку по каждой товарной категории за квартал (для отчёта руководителю).</goal>
+    <goal id="G-02">Получить суммарную выручку по каждому месяцу квартала.</goal>
+    <goal id="G-03">Определить три товара с наибольшей выручкой.</goal>
+    <goal id="G-04">Рассчитать средний чек (среднюю стоимость транзакции) по регионам.</goal>
+    <goal id="G-05">Сообщить, сколько строк было исключено из‑за пропусков в полях qty или price.</goal>
+  </goals>
+
+  <functional>
+    <fr id="FR-01" covers="G-01" priority="must">
+      Рассчитать суммарную выручку (произведение qty и price) для каждой уникальной категории, используя только строки, где qty и price не являются пропусками. Результат — таблица с колонками: категория, выручка.
+      <!-- WHY: Исключение строк с пропусками — прямое требование запроса; одновременно через факт исключения обеспечивается связь с G‑05. -->
+    </fr>
+    <fr id="FR-02" covers="G-02" priority="must">
+      Рассчитать суммарную выручку по месяцам, извлекая месяц из значения date. Используются только полные строки (qty и price заданы). Результат — таблица: месяц, выручка.
+      <!-- WHY: Месяц извлекается парсингом строки date (формат YYYY‑MM‑DD по образцу); если реальный формат отличается, потребуется уточнение, но профиль не даёт иной информации. -->
+    </fr>
+    <fr id="FR-03" covers="G-03" priority="must">
+      Для каждого товара вычислить суммарную выручку (по полным строкам), отсортировать по убыванию и взять первые три. Результат — таблица: товар, выручка.
+    </fr>
+    <fr id="FR-04" covers="G-04" priority="must">
+      Для каждого региона вычислить среднюю стоимость транзакции: среднее арифметическое от (qty × price) по строкам с заданными qty и price. Результат — таблица: регион, средний чек.
+      <!-- WHY: «Средний чек» интерпретирован как среднее значение по всем транзакциям региона, так как датасет не содержит идентификатора клиента, и «чек» логически сопоставлен одной строке продажи. -->
+    </fr>
+    <fr id="FR-05" covers="G-05" priority="must">
+      Подсчитать общее количество отброшенных строк, в которых отсутствует значение qty или price (или оба). Результат — одно число.
+    </fr>
+  </functional>
+
+  <modules>
+    <!-- MOD‑01 ранее совмещал очистку и подсчёт; по находке F‑01 выделен в отдельный модуль подсчёта MOD‑06. -->
+    <module id="MOD-01">
+      <responsibility>Очистка данных: фильтрация строк с пропусками в qty или price.</responsibility>
+      <io>
+        <INPUTS>
+          <input name="raw_rows" type="List[Record]" description="Исходные строки из CSV"/>
+        </INPUTS>
+        <OUTPUTS>
+          <output name="cleaned_rows" type="List[Record]" description="Строки, в которых и qty, и price имеют значение"/>
+        </OUTPUTS>
+        <ERRORS>
+          <case>Если нет ни одной полной строки — cleaned_rows пуст.</case>
+        </ERRORS>
+      </io>
+      <!-- WHY: Модуль обеспечивает исполнение требования очистки для FR‑01…FR‑04, поэтому закрывает все эти FR. -->
+      <covers>FR-01,FR-02,FR-03,FR-04</covers>
+    </module>
+
+    <module id="MOD-02">
+      <responsibility>Агрегация выручки по категориям.</responsibility>
+      <io>
+        <INPUTS>
+          <input name="cleaned_rows" type="List[Record]" from="MOD-01"/>
+        </INPUTS>
+        <OUTPUTS>
+          <output name="category_revenue" type="Map[Category, Float]" description="Сумма qty*price по категориям"/>
+        </OUTPUTS>
+        <ERRORS>
+          <case>При пустом наборе строк — пустая таблица категорий.</case>
+        </ERRORS>
+      </io>
+      <covers>FR-01</covers>
+    </module>
+
+    <module id="MOD-03">
+      <responsibility>Агрегация выручки по месяцам.</responsibility>
+      <io>
+        <INPUTS>
+          <input name="cleaned_rows" type="List[Record]" from="MOD-01"/>
+        </INPUTS>
+        <OUTPUTS>
+          <output name="monthly_revenue" type="Map[Month, Float]" description="Сумма qty*price по месяцам"/>
+        </OUTPUTS>
+        <ERRORS>
+          <case>При пустом наборе — пустая таблица месяцев.</case>
+        </ERRORS>
+      </io>
+      <covers>FR-02</covers>
+    </module>
+
+    <module id="MOD-04">
+      <responsibility>Определение топ-3 продуктов по выручке.</responsibility>
+      <io>
+        <INPUTS>
+          <input name="cleaned_rows" type="List[Record]" from="MOD-01"/>
+        </INPUTS>
+        <OUTPUTS>
+          <output name="top3_products" type="List[Tuple[Product, Float]]" description="Три продукта с наибольшей суммарной выручкой, отсортированные по убыванию"/>
+        </OUTPUTS>
+        <ERRORS>
+          <case>Если продуктов меньше трёх — вернуть сколько есть (список может содержать менее трёх элементов).</case>
+        </ERRORS>
+      </io>
+      <covers>FR-03</covers>
+    </module>
+
+    <module id="MOD-05">
+      <responsibility>Расчёт среднего чека по регионам.</responsibility>
+      <io>
+        <INPUTS>
+          <input name="cleaned_rows" type="List[Record]" from="MOD-01"/>
+        </INPUTS>
+        <OUTPUTS>
+          <output name="avg_check_by_region" type="Map[Region, Float]" description="Средняя стоимость транзакции (sum(qty*price)/count) по регионам"/>
+        </OUTPUTS>
+        <ERRORS>
+          <case>При пустом наборе — пустая таблица регионов.</case>
+        </ERRORS>
+      </io>
+      <covers>FR-04</covers>
+    </module>
+
+    <module id="MOD-06">
+      <responsibility>Подсчёт количества отброшенных строк из‑за пропусков в qty или price.</responsibility>
+      <io>
+        <INPUTS>
+          <input name="raw_rows" type="List[Record]" description="Исходные строки из CSV (до очистки)"/>
+        </INPUTS>
+        <OUTPUTS>
+          <output name="discarded_count" type="Int" description="Количество строк, где отсутствует qty или price"/>
+        </OUTPUTS>
+        <ERRORS>
+          <case>Если все строки неполные — discarded_count равно общему числу строк.</case>
+        </ERRORS>
+      </io>
+      <!-- WHY: Разделённая ответственность — модуль считает только отброшенные строки, обеспечивая независимость от процесса фильтрации. -->
+      <covers>FR-05</covers>
+    </module>
+  </modules>
+
+  <acceptance>
+    <!-- WHY: Образец датасета используется как контрольный пример с известными результатами; это даёт проверяемые числовые значения для каждого FR. -->
+    <criterion for="FR-01">
+      На входе модуля — 5 строк образца (ни одна не отбрасывается). Выход: electronics=317000, home=30500.
+    </criterion>
+    <criterion for="FR-02">
+      На образце (все строки относятся к январю): месяц 2026-01 → выручка 347500.
+    </criterion>
+    <criterion for="FR-03">
+      Образец: телефон phone_x1=225000, ноутбук laptop_a3=92000, пылесос vacuum_v8=18000 (это первые три); чайник kettle_k2=12500 оказывается ниже топ-3.
+    </criterion>
+    <criterion for="FR-04">
+      Образец: msk=73750, spb=55000, ekb=90000.
+    </criterion>
+    <criterion for="FR-05">
+      На образце — 0 отброшенных строк. На полном наборе из 28 строк — число должно равняться количеству строк с пропуском в qty или price (ожидаемое значение ≤2, так как профиль сообщает об 1 пустом qty и 1 пустом price, возможно, в одной и той же строке).
+    </criterion>
+  </acceptance>
+</analysis_spec>
