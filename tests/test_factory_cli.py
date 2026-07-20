@@ -79,9 +79,11 @@ def test_menu_run_shop_and_exit() -> None:
     shops = discover_shops()
     assert isinstance(shops, Ok)
     launched: list[tuple[str, str]] = []
+    # номер цеха в меню вычисляется: добавление нового цеха в configs/ не ломает тест
+    wiki_choice = str([shop.name for shop in shops.value].index("wiki_maintainer") + 1)
     answers = iter([
         "1",            # действие: запустить цех
-        "6",            # цех №6 (wiki_maintainer — последний по алфавиту среди 6 цехов)
+        wiki_choice,    # цех wiki_maintainer
         "a",            # режим autopilot
         "тестовый вход",
         "3",            # действие: выход

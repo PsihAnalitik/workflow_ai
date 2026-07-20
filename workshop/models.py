@@ -13,6 +13,8 @@ class LLMParams(BaseModel):
     temperature: float = 0.0
     seed: int | None = None
     max_tokens: int = 4096
+    # None → таймаут клиента-адаптера (у разных цехов разная длина вызова)
+    timeout_s: float | None = None
 
 
 class WikiRef(BaseModel):

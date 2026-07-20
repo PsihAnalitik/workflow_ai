@@ -34,7 +34,7 @@ class OpenAILLM:
         self,
         api_key: str | None = None,
         base_url: str | None = None,
-        timeout_s: float = 120.0,
+        timeout_s: float = 300.0,
     ) -> None:
         if api_key is not None:
             self._api_key = api_key
@@ -98,6 +98,9 @@ class OpenAILLM:
                 "messages": messages,
                 "temperature": params.temperature,
                 "max_completion_tokens": params.max_tokens,
+                "timeout": params.timeout_s
+                if params.timeout_s is not None
+                else self._timeout_s,
             }
             if params.seed is not None:
                 request_kwargs["seed"] = params.seed
