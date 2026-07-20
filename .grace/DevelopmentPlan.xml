@@ -1,4 +1,4 @@
-<development_plan project="agent_workshop" version="10"
+<development_plan project="agent_workshop" version="11"
                   derived_from="user_docs/task_statement.md@v6">
   <!-- v4: CLI фабрики (FR-22) — модуль M-19 factory_cli, обновление TSK-0903;
        этап 12.
@@ -28,7 +28,12 @@
        v10: параллельный map (запрос автора 11.07.2026) — TSK-2306
        ThreadPoolExecutor по элементам (--workers, потолок 16; LLM-вызовы
        I/O-bound), HITL-графы несовместимы с параллелью — явный отказ;
-       этап 22 -->
+       этап 22.
+       v11: цикл визуального ревью фронтенда, шаг 1 из 3 (запрос автора
+       16.07.2026) — M-25 browser_screenshot (скриншот headless Chromium
+       как инструмент узла, console errors текстом), зависимость playwright;
+       шаги 2–3 (vision-вход в M-04, узел visual_review цеха frontend) —
+       вне этой версии, см. notes M-25; этап 23 -->
 
   <!-- v2: wiki-база знаний (FR-18..FR-20) — модули M-16/M-17, расширения
        M-01/M-06/M-09 и CLI; этапы 7–9 порядка реализации.
@@ -1078,11 +1083,51 @@
              изменения инструмента. Запросы к боевым БД — только read-only
              DSN на стороне пользователя.</notes>
     </module>
+
+    <module id="M-25" name="browser_screenshot">
+      <responsibility>Скриншот web-страницы как инструмент узла: «глаза» для
+                      визуального ревью сгенерированного фронтенда</responsibility>
+      <covers>цикл визуального ревью фронтенда, шаг 1 из 3 (запрос автора 16.07.2026)</covers>
+      <task id="TSK-2501">
+        <purpose>Захват страницы headless Chromium (Playwright sync API):
+                 ТОЛЬКО http/https URL (отказ ДО запуска браузера); PNG в
+                 WORKSHOP_SCREENSHOT_DIR (дефолт screenshots/, образец
+                 WORKSHOP_DB_DSN); вместе со снимком собираются console
+                 errors и pageerror — белый экран из-за JS-ошибки виден
+                 модели текстом даже без vision-входа</purpose>
+        <inputs>url: str; width/height: int (клампы 320..3840 / 240..2160,
+                дефолт 1280x800); client: BrowserClient (Protocol; MVP —
+                PlaywrightBrowser, FakeBrowser для тестов)</inputs>
+        <outputs>Result[PageSnapshot] — путь PNG, title страницы,
+                 console_errors (первые 10)</outputs>
+        <errors>SCREENSHOT_URL_REJECTED(пустой, не http/https);
+                BROWSER_UNAVAILABLE(playwright не установлен / chromium
+                не скачан); SCREENSHOT_FAILED(навигация, таймаут,
+                ошибка браузера)</errors>
+      </task>
+      <task id="TSK-2502">
+        <purpose>ToolSpec browser_screenshot для tool-цикла + wiring в
+                 workshop_node (имя в config.tools, реестр локальных имён);
+                 сбои — ТЕКСТОМ модели (контракт TSK-0402)</purpose>
+        <inputs>аргументы инструмента: url: str, width/height: int (опц.)</inputs>
+        <outputs>текст: путь сохранённого PNG + title + console errors;
+                 имена файлов shot_NNN.png — счётчик без перезаписи
+                 существующих (без таймстемпов — воспроизводимость NFR-04)</outputs>
+        <errors>Err нет — все сбои текстом</errors>
+      </task>
+      <notes>Зависимость playwright; браузер ставится отдельно:
+             uv run playwright install chromium. Снимок доступен модели пока
+             только путём и текстовыми наблюдениями: ToolSpec.executor → str
+             (TSK-0402) и complete(prompt: str) изображений не несут.
+             Следующие шаги цикла (вне M-25): шаг 2 — vision-вход в M-04
+             (multimodal content parts + vision-профиль в models.json цеха),
+             шаг 3 — цех frontend с узлом visual_review в graph.json.</notes>
+    </module>
   </modules>
 
   <dependencies>  <!-- DAG; стрелка = «зависит от» -->
     M-06 → M-01, M-02, M-03, M-04, M-05, M-16(build_bundle), M-21(build_tools),
-           M-22(build_material_tools)
+           M-22(build_material_tools), M-25(build_browser_tools)
     M-07 → M-06
     M-09 → M-01, M-06, M-07, M-08, M-16(parse_tech_stack), M-22(ingest)
     M-11 → M-06, M-10
@@ -1108,6 +1153,7 @@
     FR-23→M-20;
     цех llm_wiki (запрос автора 10.07.2026)→M-22 (+конфиги configs/llm_wiki,
     seed projects/llm_wiki/wiki, расширение GraphConfig в M-01/M-09);
+    цикл визуального ревью фронтенда, шаг 1 (запрос автора 16.07.2026)→M-25;
     NFR-01,NFR-02→M-02; NFR-03→M-03,M-06; NFR-04→M-05; NFR-05→весь план (11 модулей, без фреймворков)
   </crosslinks>
 
@@ -1169,6 +1215,12 @@
     22. TSK-2306 параллельный map                → verify: unit — порядок сводки при
                                                    workers>1, отказ MAP_PARALLEL_HITL;
                                                    живой map --workers 4 быстрее ×3+
+    23. M-25 browser_screenshot + wiring         → verify: unit все ERRORS TSK-2501 на
+                                                   FakeBrowser (плохой URL — до браузера,
+                                                   сбой браузера — текст, узел жив);
+                                                   wiring-тест workshop_node; живой снимок
+                                                   локальной страницы с JS-ошибкой —
+                                                   PNG существует, ошибка в тексте
   </implementation_order>
 
   <e2e_tests>
