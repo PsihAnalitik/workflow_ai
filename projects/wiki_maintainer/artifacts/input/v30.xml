@@ -1,0 +1,15 @@
+Актуализировать wiki: добавить область технологии Django в python/ — сейчас в python/ есть fastapi, pandas, polars, duckdb, httpx, а Django нет вовсе.
+
+Зачем: готовится цех frontend_site (витрина портфолио-платформы на Django Templates + HTMX/Alpine, темизация через CSS-токены). Страницы нужны как wiki_refs для узла tech_selection и для codegen-узлов, которые генерируют шаблоны, views и тесты рендера. Существующая страница python/fastapi/index.md — образец объёма и структуры.
+
+Батч этого прогона — 4 страницы, все в python/django/:
+
+1. python/django/index.md — обзорная: что такое Django 5.x, из чего состоит проект (settings, apps, models, views, urls, templates, static/media), какие части нужны витрине, а какие вне скоупа (DRF, Celery, admin-кастомизация). Ссылки на остальные страницы батча.
+
+2. python/django/templates.md — язык шаблонов Django: наследование (extends/block), include и партиалы, контекст, встроенные теги и фильтры, static/media в шаблонах (только {{ obj.file.url }} и srcset, без путей ФС), кастомные template tags и filters. Отдельным разделом — HTMX и Alpine.js поверх шаблонов Django: hx-get/hx-post/hx-target/hx-swap, отдача партиала вместо полной страницы, прогрессивное улучшение (работа при выключенном JS), x-data/x-show для локального состояния.
+
+3. python/django/views_urls.md — маршрутизация и views: path/re_path, именованные маршруты и reverse, function-based и class-based views, контекст шаблона, get_object_or_404, пагинация, ORM-запросы без N+1 (select_related/prefetch_related, annotate/Count), кастомные Manager/QuerySet.
+
+4. python/django/testing.md — тестирование: pytest-django, django.test.Client, проверка кода ответа и содержимого шаблона, assertTemplateUsed, фикстуры и фабрики данных, sqlite in-memory и настройки для тестов (locmem cache, dummy storage), проверка отсутствия N+1 через assertNumQueries.
+
+Материала (выжимок из документации) в запросе нет — страницы пишутся из знаний модели, режим unverified штатный.

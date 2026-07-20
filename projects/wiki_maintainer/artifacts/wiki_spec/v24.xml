@@ -1,0 +1,46 @@
+<wiki_change derived_from="input@v2">
+  <source_request>Актуализировать wiki: добавить область технологии Django в python/ — сейчас в python/ есть fastapi, pandas, polars, duckdb, httpx, а Django нет вовсе.
+
+Зачем: готовится цех frontend_site (витрина портфолио-платформы на Django Templates + HTMX/Alpine, темизация через CSS-токены). Страницы нужны как wiki_refs для узла tech_selection и для codegen-узлов, которые генерируют шаблоны, views и тесты рендера. Существующая страница python/fastapi/index.md — образец объёма и структуры.
+
+Батч этого прогона — 4 страницы, все в python/django/:
+
+1. python/django/index.md — обзорная: что такое Django 5.x, из чего состоит проект (settings, apps, models, views, urls, templates, static/media), какие части нужны витрине, а какие вне скоупа (DRF, Celery, admin-кастомизация). Ссылки на остальные страницы батча.
+
+2. python/django/templates.md — язык шаблонов Django: наследование (extends/block), include и партиалы, контекст, встроенные теги и фильтры, static/media в шаблонах (только {{ obj.file.url }} и srcset, без путей ФС), кастомные template tags и filters. Отдельным разделом — HTMX и Alpine.js поверх шаблонов Django: hx-get/hx-post/hx-target/hx-swap, отдача партиала вместо полной страницы, прогрессивное улучшение (работа при выключенном JS), x-data/x-show для локального состояния.
+
+3. python/django/views_urls.md — маршрутизация и views: path/re_path, именованные маршруты и reverse, function-based и class-based views, контекст шаблона, get_object_or_404, пагинация, ORM-запросы без N+1 (select_related/prefetch_related, annotate/Count), кастомные Manager/QuerySet.
+
+4. python/django/testing.md — тестирование: pytest-django, django.test.Client, проверка кода ответа и содержимого шаблона, assertTemplateUsed, фикстуры и фабрики данных, sqlite in-memory и настройки для тестов (locmem cache, dummy storage), проверка отсутствия N+1 через assertNumQueries.
+
+Материала (выжимок из документации) в запросе нет — страницы пишутся из знаний модели, режим unverified штатный.</source_request>
+  <summary>Добавление 4 страниц Django (python/django/): обзорная, templates, views_urls, testing — все unverified; строки дочерних страниц добавлены в индекс python/django/index.md (исправление F-01..F-03).</summary>
+  <pages>
+    <page path="python/django/index.md" action="add" unverified="true">
+      <purpose>Обзорная карточка Django 5.x: архитектура проекта (settings, apps, models, views, urls, templates, static/media), границы скоупа витрины (DRF/Celery/admin-кастомизация — вне), ссылки на templates, views_urls, testing.</purpose>
+      <index_row>| [django](django/index.md) | `python/django` | веб-приложения на Django Templates + HTMX/Alpine (витрины, серверный рендеринг) | allowed |</index_row>
+      <related>python/index.md, python/fastapi/index.md</related>
+    </page>
+    <page path="python/django/templates.md" action="add" unverified="true">
+      <purpose>Язык шаблонов Django: extends/block, include/партиалы, контекст, встроенные теги и фильтры, static/media (только obj.file.url и srcset), кастомные tags/filters. Раздел HTMX + Alpine.js: hx-get/hx-post/hx-target/hx-swap, партиалы, прогрессивное улучшение, x-data/x-show.</purpose>
+      <index_row>| [templates](templates.md) | язык шаблонов Django: наследование, HTMX-партиалы, Alpine.js для локального состояния |</index_row>
+      <related>python/django/index.md, python/django/views_urls.md</related>
+    </page>
+    <page path="python/django/views_urls.md" action="add" unverified="true">
+      <purpose>Маршрутизация (path/re_path, именованные маршруты, reverse), FBV и CBV, контекст шаблона, get_object_or_404, пагинация, ORM без N+1 (select_related/prefetch_related, annotate/Count), кастомные Manager/QuerySet.</purpose>
+      <index_row>| [views_urls](views_urls.md) | views и маршруты: FBV/CBV, ORM-запросы без N+1, пагинация |</index_row>
+      <related>python/django/index.md, python/django/templates.md</related>
+    </page>
+    <page path="python/django/testing.md" action="add" unverified="true">
+      <purpose>Тестирование Django: pytest-django, django.test.Client, assertTemplateUsed, фикстуры/фабрики, sqlite in-memory, locmem cache/dummy storage, assertNumQueries для проверки отсутствия N+1.</purpose>
+      <index_row>| [testing](testing.md) | тесты Django: pytest-django, Client, assertTemplateUsed, assertNumQueries |</index_row>
+      <related>python/django/index.md, python/django/views_urls.md, python/fastapi/testing.md</related>
+    </page>
+  </pages>
+  <index_updates>
+    <index path="python/index.md">Добавить строку в таблицу реестра технологий: | [django](django/index.md) | `python/django` | веб-приложения на Django Templates + HTMX/Alpine (витрины, серверный рендеринг) | allowed |</index>
+    <index path="python/django/index.md">Добавить строку: | [templates](templates.md) | язык шаблонов Django: наследование, HTMX-партиалы, Alpine.js для локального состояния |</index>
+    <index path="python/django/index.md">Добавить строку: | [views_urls](views_urls.md) | views и маршруты: FBV/CBV, ORM-запросы без N+1, пагинация |</index>
+    <index path="python/django/index.md">Добавить строку: | [testing](testing.md) | тесты Django: pytest-django, Client, assertTemplateUsed, assertNumQueries |</index>
+  </index_updates>
+</wiki_change>
