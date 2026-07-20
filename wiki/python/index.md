@@ -12,6 +12,7 @@
 | [duckdb](duckdb/index.md) | `python/duckdb` | встраиваемая аналитическая СУБД: SQL по CSV/Parquet, оконные функции, интеграция с pandas | allowed |
 | [polars](polars/index.md) | `python/polars` | быстрые DataFrame на Rust (lazy evaluation, streaming, многопоточность) | allowed |
 | [httpx](httpx/index.md) | `python/httpx` | современный HTTP-клиент (sync/async, HTTP/1.1, HTTP/2) | allowed |
+| [django](django/index.md) | `python/django` | веб-приложения на Django Templates + HTMX/Alpine (витрины, серверный рендеринг) | allowed |
 
 Статусы: preferred — выбирается по умолчанию для своего класса задач;
 allowed — допустима с WHY-обоснованием; deprecated — не выбирать для нового кода.

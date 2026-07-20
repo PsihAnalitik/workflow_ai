@@ -205,3 +205,21 @@ HITL-приёмка — за автором (autopilot).**
 | `python/httpx/index.md` | — | `2c21d468cefe30f7` |
 | `python/httpx/retries.md` | — | `67b9f53c66530b30` |
 | `python/httpx/retries.source.md` | — | `4663e45cb07e7476` |
+
+## 2026-07-20 — карточки Django для цеха frontend_site (артефакт wiki_pages v20)
+
+**Основание: прогон цеха wiki_maintainer через MCP (run 541598ecd7aa). Гейт wiki_spec —
+PASS со 2-й итерации: ревью поймало отсутствие index_update для родителя
+python/django/index.md у трёх дочерних страниц. Гейт wiki_pages — PASS без находок.
+Находка W3 «python/fastapi/testing.md не резолвится» отклонена как ложная (файл
+существует и прописан в python/fastapi/index.md) — слепой угол видимости дерева.
+Страницы unverified: материала в запросе не было, фактура Django/HTMX требует
+проверки человеком. Применение wiki-apply --spec.**
+
+| Файл | Роль | sha256[:16] |
+|---|---|---|
+| `python/django/index.md` | — | `30a8a77978d2e003` |
+| `python/django/templates.md` | — | `a86ed75819014d37` |
+| `python/django/testing.md` | — | `4f3ba1cad720d8ff` |
+| `python/django/views_urls.md` | — | `c45018de634b00b2` |
+| `python/index.md` | — | `227e7fb8aaa5e245` |
