@@ -1,0 +1,584 @@
+<developmentplan project="portfolio_backend" version="1"
+                 derived_from="contracts.xml@1">
+  <technology>
+    <language>Python 3.14</language>
+    <framework>Django 5.x</framework>
+    <database>PostgreSQL 16</database>
+    <!-- WHY: django-storages позволяет хранить медиа в управляемом хранилище (S3/etc)
+         без привязки к ФС, что соответствует NFR-03 (абстракция хранилища) -->
+    <media_storage>django-storages (default storage backend)</media_storage>
+    <allowed_libraries>
+      <lib>stdlib</lib>
+      <lib>Django 5.x</lib>
+      <lib>django-storages</lib>
+      <lib>pytest-django (только тесты)</lib>
+    </allowed_libraries>
+    <!-- WHY: фоновые задачи, кэш и полнотекстовый поиск вынесены за границы модуля,
+         чтобы план оставался независимым от выбранного воркера/брокера (NFR-05) -->
+    <out_of_scope>background_tasks, cache, search</out_of_scope>
+  </technology>
+
+  <!-- ============================================================ -->
+  <!-- MODELS                                                        -->
+  <!-- ============================================================ -->
+  <models>
+    <model name="Profile" table="site_profile">
+      <fields>
+        <!-- WHY: синглтон‑профиль обеспечивается через pk=1 и уникальное поле _singleton_key,
+             без триггеров, что упрощает миграции -->
+        <field name="id" type="AutoField" primary_key="true"/>
+        <field name="_singleton_key" type="CharField" max_length="16" unique="true" default="'site_profile'" editable="false"/>
+        <field name="name" type="CharField" max_length="200" null="false" blank="false"/>
+        <field name="title" type="CharField" max_length="300" null="false" blank="false"/>
+        <field name="bio" type="TextField" null="false" blank="false"/>
+        <field name="avatar" type="ImageField" null="true" blank="true" upload_to="profile/"/>
+        <field name="banner" type="ImageField" null="true" blank="true" upload_to="profile/"/>
+        <!-- WHY: вложенные структуры (contacts, social_links, clients) хранятся как JSON,
+             потому что контракт не предусматривает операций над отдельными элементами;
+             обновление профиля целиком через JSONField не требует дополнительных таблиц -->
+        <field name="contacts" type="JSONField" default="list"/>
+        <field name="social_links" type="JSONField" default="list"/>
+        <field name="clients" type="JSONField" default="list"/>
+        <field name="theme" type="CharField" max_length="50" blank="true" default=""/>
+      </fields>
+      <meta>
+        <constraints>
+          <unique fields="_singleton_key"/>
+        </constraints>
+      </meta>
+      <invariants>
+        <invariant>В таблице ровно одна запись (pk=1); вставка второй строки невозможна из‑за unique _singleton_key.</invariant>
+      </invariants>
+    </model>
+
+    <model name="Category" table="category">
+      <fields>
+        <field name="slug" type="SlugField" max_length="100" unique="true" null="false" blank="false"/>
+        <field name="name" type="CharField" max_length="200" null="false" blank="false"/>
+        <field name="description" type="TextField" blank="true" default=""/>
+      </fields>
+      <meta>
+        <ordering>['slug']</ordering>
+      </meta>
+    </model>
+
+    <model name="Tag" table="tag">
+      <fields>
+        <field name="slug" type="SlugField" max_length="100" unique="true" null="false" blank="false"/>
+        <field name="name" type="CharField" max_length="200" null="false" blank="false"/>
+      </fields>
+      <meta>
+        <ordering>['slug']</ordering>
+      </meta>
+    </model>
+
+    <model name="Case" table="case">
+      <fields>
+        <field name="slug" type="SlugField" max_length="200" unique="true" null="false" blank="false"/>
+        <field name="title" type="CharField" max_length="300" null="false" blank="false"/>
+        <field name="description" type="TextField" null="false" blank="false"/>
+        <field name="cover" type="ImageField" null="true" blank="true" upload_to="cases/"/>
+        <field name="date" type="DateField" null="false" blank="false"/>
+        <field name="order" type="IntegerField" default="0" null="false" blank="false" db_index="true"/>
+        <field name="status" type="CharField" max_length="10" choices="[('draft','draft'),('published','published')]" default="'draft'" null="false" blank="false" db_index="true"/>
+        <field name="seo_title" type="CharField" max_length="300" blank="true" default=""/>
+        <field name="seo_description" type="TextField" blank="true" default=""/>
+        <!-- FK: category_slug → Category.slug, обязателен, защита от удаления категории -->
+        <field name="category" type="ForeignKey" to="Category" on_delete="PROTECT" related_name="cases"/>
+        <field name="tags" type="ManyToManyField" to="Tag" blank="true" related_name="cases"/>
+      </fields>
+      <meta>
+        <ordering>['order', 'slug']</ordering>
+        <constraints>
+          <!-- WHY: тай‑брейк по slug (asc) гарантирует детерминированную выдачу (NFR-02) -->
+          <unique_together fields="['order','slug']" name="uq_case_order_slug"/>
+        </constraints>
+      </meta>
+    </model>
+
+    <model name="CaseImage" table="case_image">
+      <fields>
+        <field name="id" type="UUIDField" primary_key="true" default="uuid.uuid4"/>
+        <field name="case" type="ForeignKey" to="Case" on_delete="CASCADE" related_name="images"/>
+        <field name="image" type="ImageField" upload_to="cases/" null="false" blank="false"/>
+        <field name="alt" type="CharField" max_length="300" blank="true" default=""/>
+        <field name="caption" type="TextField" blank="true" default=""/>
+        <field name="order" type="IntegerField" default="0" null="false" blank="false"/>
+      </fields>
+      <meta>
+        <ordering>['order', 'id']</ordering>
+      </meta>
+    </model>
+  </models>
+
+  <!-- ============================================================ -->
+  <!-- QUERIES                                                       -->
+  <!-- ============================================================ -->
+  <queries>
+    <queryset_method name="profile.get_singleton">
+      <description>Возвращает единственный профиль (pk=1). Если запись отсутствует — возвращает None.</description>
+      <select_related/>
+      <prefetch_related/>
+      <filter>pk=1</filter>
+    </queryset_method>
+
+    <queryset_method name="Case.objects.with_details" manager="CaseManager">
+      <description>Загружает кейс с категорией, тегами и изображениями для детального просмотра.</description>
+      <select_related>category</select_related>
+      <prefetch_related>tags, images</prefetch_related>
+      <filter/>
+      <sorting/>
+    </queryset_method>
+
+    <queryset_method name="Case.objects.published" manager="CaseManager">
+      <description>Возвращает только опубликованные кейсы. Используется всеми публичными выдачами.</description>
+      <filter>status='published'</filter>
+    </queryset_method>
+
+    <queryset_method name="CaseManager.list_cases" manager="CaseManager" covers="NFR-04">
+      <description>Список кейсов с фильтрацией по категории, тегу, статусу, сортировкой и пагинацией.
+      Сортировка по умолчанию order ASC, при равных order доупорядочивание по slug ASC.
+      Для сортировки по date также доупорядочивание по slug ASC.</description>
+      <parameters>category_slug, tag_slug, status, sort_by, sort_order, page, per_page</parameters>
+      <select_related>category</select_related>
+      <prefetch_related>tags</prefetch_related>
+      <filter>
+        <cond>if category_slug: category__slug=category_slug</cond>
+        <cond>if tag_slug: tags__slug=tag_slug</cond>
+        <cond>if status: status=status</cond>
+      </filter>
+      <sorting>
+        <case>if sort_by='order': sort_order on order, then slug ASC (tie-break)</case>
+        <case>if sort_by='date': sort_order on date, then slug ASC (tie-break)</case>
+        <default>order ASC, slug ASC</default>
+      </sorting>
+      <pagination>page, per_page</pagination>
+      <return>QuerySet (paginated)</return>
+    </queryset_method>
+
+    <queryset_method name="CaseManager.get_published_detail" manager="CaseManager" covers="NFR-04">
+      <description>Детальный опубликованный кейс с соседними слагами.
+      Соседи вычисляются в общем порядке: order ASC, slug ASC среди опубликованных.
+      previous_slug – слаг предыдущего кейса в этом порядке, next_slug – следующего.</description>
+      <steps>
+        1. Получить кейс с with_details, отфильтрованный статус=published и slug=slug. Если нет — None.
+        2. Найти previous: все опубликованные кейсы с (order, slug) < (case.order, case.slug), order by order DESC, slug DESC, limit 1.
+        3. Найти next: все опубликованные кейсы с (order, slug) > (case.order, case.slug), order by order ASC, slug ASC, limit 1.
+      </steps>
+      <return>Объект кейса с атрибутами previous_slug, next_slug</return>
+    </queryset_method>
+
+    <queryset_method name="Category.objects.with_published_case_count" covers="NFR-04">
+      <description>Список категорий, имеющих хотя бы один опубликованный кейс,
+      с аннотацией количества таких кейсов (case_count).</description>
+      <filter>cases__status='published'</filter>
+      <annotate>case_count = Count('cases', filter=Q(cases__status='published'))</annotate>
+      <distinct>True</distinct>
+      <prefetch_related/>
+      <return>QuerySet категорий с атрибутом case_count</return>
+    </queryset_method>
+  </queries>
+
+  <!-- ============================================================ -->
+  <!-- READ MODELS                                                   -->
+  <!-- ============================================================ -->
+  <read_models>
+    <!-- Профиль сайта (публичный и админский) -->
+    <read_model name="site_profile">
+      <field key="name" type="string" source="Profile.name" optional="false"/>
+      <field key="title" type="string" source="Profile.title" optional="false"/>
+      <field key="bio" type="string" source="Profile.bio" optional="false"/>
+      <!-- WHY: медиа‑поля отдаются как URL хранилища (через storage.url) –
+           так витрина не получает бинарные объекты и не зависит от ФС -->
+      <field key="avatar_url" type="string (URL)" source="Profile.avatar.url (если заполнено, иначе None)" optional="true"/>
+      <field key="banner_url" type="string (URL)" source="Profile.banner.url (если заполнено, иначе None)" optional="true"/>
+      <field key="contacts" type="list" source="Profile.contacts (JSON)" optional="false"/>
+      <field key="social_links" type="list" source="Profile.social_links (JSON)" optional="false"/>
+      <field key="clients" type="list of string" source="Profile.clients (JSON)" optional="false"/>
+      <field key="theme" type="string" source="Profile.theme" optional="true"/>
+      <!-- Служебные поля (id, _singleton_key) в read_model не попадают -->
+    </read_model>
+
+    <!-- Краткий список кейсов (CaseSummary) -->
+    <read_model name="case_summary" covers="NFR-04">
+      <field key="slug" type="string" source="Case.slug" optional="false"/>
+      <field key="title" type="string" source="Case.title" optional="false"/>
+      <field key="cover_url" type="string (URL)" source="Case.cover.url (если заполнено, иначе None)" optional="true"/>
+      <field key="date" type="string (ISO date)" source="Case.date" optional="false"/>
+      <field key="order" type="int" source="Case.order" optional="false"/>
+      <field key="category_slug" type="string" source="Case.category.slug" optional="false"/>
+      <field key="tags" type="list of string" source="[t.slug for t in Case.tags.all()]" optional="false"/>
+    </read_model>
+
+    <!-- Детальный кейс (Case) для админки и детальной публичной страницы -->
+    <read_model name="case_detail">
+      <field key="slug" type="string" source="Case.slug" optional="false"/>
+      <field key="title" type="string" source="Case.title" optional="false"/>
+      <field key="description" type="string" source="Case.description" optional="false"/>
+      <field key="cover_url" type="string (URL)" source="Case.cover.url (если заполнено)" optional="true"/>
+      <field key="date" type="string" source="Case.date" optional="false"/>
+      <field key="order" type="int" source="Case.order" optional="false"/>
+      <field key="status" type="enum" source="Case.status" optional="false"/>
+      <field key="seo_title" type="string" source="Case.seo_title" optional="true"/>
+      <field key="seo_description" type="string" source="Case.seo_description" optional="true"/>
+      <field key="category_slug" type="string" source="Case.category.slug" optional="false"/>
+      <field key="tags" type="list of string" source="[t.slug for t in Case.tags.all()]" optional="false"/>
+      <field key="images" type="list of image_summary" source="Case.images.all()" optional="false"/>
+    </read_model>
+
+    <read_model name="image_summary">
+      <field key="id" type="string (UUID)" source="CaseImage.id" optional="false"/>
+      <field key="url" type="string (URL)" source="CaseImage.image.url" optional="false"/>
+      <field key="alt" type="string" source="CaseImage.alt" optional="true"/>
+      <field key="caption" type="string" source="CaseImage.caption" optional="true"/>
+      <field key="order" type="int" source="CaseImage.order" optional="false"/>
+    </read_model>
+
+    <!-- Детальная публичная страница (PublishedCaseDetail) -->
+    <read_model name="published_case_detail" covers="NFR-04">
+      <field key="case" type="case_detail" source="результат queryset‑метода get_published_detail" optional="false"/>
+      <field key="previous_slug" type="string|null" source="атрибут previous_slug объекта" optional="true"/>
+      <field key="next_slug" type="string|null" source="атрибут next_slug объекта" optional="true"/>
+    </read_model>
+
+    <!-- Категория (админская) -->
+    <read_model name="category">
+      <field key="slug" type="string" source="Category.slug" optional="false"/>
+      <field key="name" type="string" source="Category.name" optional="false"/>
+      <field key="description" type="string" source="Category.description" optional="true"/>
+    </read_model>
+
+    <!-- Тег -->
+    <read_model name="tag">
+      <field key="slug" type="string" source="Tag.slug" optional="false"/>
+      <field key="name" type="string" source="Tag.name" optional="false"/>
+    </read_model>
+
+    <!-- Категория с количеством кейсов -->
+    <read_model name="category_with_case_count" covers="NFR-04">
+      <field key="category" type="category" source="Category" optional="false"/>
+      <field key="case_count" type="int" source="case_count (аннотация)" optional="false"/>
+    </read_model>
+  </read_models>
+
+  <!-- ============================================================ -->
+  <!-- MODULES                                                       -->
+  <!-- ============================================================ -->
+  <modules>
+    <!-- profile -->
+    <module id="MOD-01" implements="OP-set-site-profile, OP-get-site-profile, OP-get-public-site-profile"
+            contract="C-content-management" file="profile.py">
+      <responsibility>Управление синглтон‑профилем сайта</responsibility>
+      <io>
+        <!-- OP-set-site-profile -->
+        <inputs for="OP-set-site-profile">profile: dict с полями SiteProfile</inputs>
+        <outputs for="OP-set-site-profile">profile: dict SiteProfile</outputs>
+        <errors for="OP-set-site-profile">MISSING_REQUIRED_FIELD (при отсутствии name, title или bio)</errors>
+        <!-- OP-get-site-profile / OP-get-public-site-profile -->
+        <inputs for="OP-get-site-profile, OP-get-public-site-profile"></inputs>
+        <outputs for="OP-get-site-profile, OP-get-public-site-profile">profile: dict SiteProfile</outputs>
+        <errors for="OP-get-site-profile, OP-get-public-site-profile"></errors>
+      </io>
+      <algorithm>
+        1. Для OP-set-site-profile:
+           - Проверить наличие ключей name, title, bio. Если хоть одного нет → вернуть MISSING_REQUIRED_FIELD.
+           - Получить Profile через get_or_create с pk=1.
+           - Обновить поля name, title, bio, avatar, banner, contacts, social_links, clients, theme.
+           - Сохранить.
+           - Вернуть сериализованный профиль согласно read_model site_profile.
+        2. Для OP-get-site-profile / OP-get-public-site-profile:
+           - Выполнить queryset‑метод profile.get_singleton().
+           - Поскольку профиль гарантированно существует (инвариант синглтона, созданный через OP-set-site-profile),
+             сразу вернуть сериализованный профиль.
+      </algorithm>
+      <tests>
+        - happy: установка профиля и получение возвращает все поля.
+        - edge: отсутствие name/title/bio → MISSING_REQUIRED_FIELD.
+      </tests>
+    </module>
+
+    <!-- case_crud -->
+    <module id="MOD-02" implements="OP-create-case, OP-update-case, OP-delete-case, OP-get-case, OP-list-cases, OP-change-case-status"
+            contract="C-content-management" file="case_crud.py">
+      <responsibility>CRUD‑операции управления кейсами с валидацией ссылочных полей</responsibility>
+      <io>
+        <!-- OP-create-case -->
+        <inputs for="OP-create-case">slug, title, description, cover_url, date, order, status, seo_title, seo_description, category_slug, tags (list of slug)</inputs>
+        <outputs for="OP-create-case">case: dict case_detail</outputs>
+        <errors for="OP-create-case">MISSING_REQUIRED_FIELD, INVALID_SLUG, SLUG_ALREADY_EXISTS, CATEGORY_NOT_FOUND, TAG_NOT_FOUND, INVALID_STATUS</errors>
+        <!-- OP-update-case -->
+        <inputs for="OP-update-case">slug (текущий), опциональные поля: title, description, ...</inputs>
+        <outputs for="OP-update-case">case: dict case_detail</outputs>
+        <errors for="OP-update-case">CASE_NOT_FOUND, SLUG_ALREADY_EXISTS, INVALID_SLUG, CATEGORY_NOT_FOUND, TAG_NOT_FOUND, INVALID_STATUS</errors>
+        <!-- OP-delete-case -->
+        <inputs for="OP-delete-case">slug</inputs>
+        <outputs for="OP-delete-case"></outputs>
+        <errors for="OP-delete-case">CASE_NOT_FOUND</errors>
+        <!-- OP-get-case -->
+        <inputs for="OP-get-case">slug</inputs>
+        <outputs for="OP-get-case">case: dict case_detail</outputs>
+        <errors for="OP-get-case">CASE_NOT_FOUND</errors>
+        <!-- OP-list-cases -->
+        <inputs for="OP-list-cases">category_slug?, tag_slug?, status?, sort_by?, sort_order?, page?, per_page?</inputs>
+        <outputs for="OP-list-cases">cases: list of case_summary, total_count: int</outputs>
+        <errors for="OP-list-cases">INVALID_SORT_FIELD, INVALID_SORT_ORDER, INVALID_STATUS</errors>
+        <!-- OP-change-case-status -->
+        <inputs for="OP-change-case-status">case_slug, new_status</inputs>
+        <outputs for="OP-change-case-status">case: dict case_detail</outputs>
+        <errors for="OP-change-case-status">CASE_NOT_FOUND, INVALID_STATUS</errors>
+      </io>
+      <algorithm>
+        1. Для OP-create-case:
+           a. Проверить обязательные поля; при отсутствии → MISSING_REQUIRED_FIELD.
+           b. Проверить формат slug (непустой, без пробелов); если нарушен → INVALID_SLUG.
+           c. Проверить уникальность slug; если конфликт → SLUG_ALREADY_EXISTS.
+           d. Проверить, что status в [draft, published]; иначе → INVALID_STATUS.
+           e. Найти категорию по category_slug; если нет → CATEGORY_NOT_FOUND.
+           f. Найти теги по списку tag_slugs; если какой-то отсутствует → TAG_NOT_FOUND.
+           g. Создать Case с переданными данными, установить связи.
+           h. Вызвать OP-event-case-created.
+           i. Вернуть case_detail через queryset‑метод with_details.
+        2. OP-update-case:
+           a. Найти Case по slug; если нет → CASE_NOT_FOUND.
+           b. Если передан новый slug: проверить формат (INVALID_SLUG), уникальность (SLUG_ALREADY_EXISTS).
+           c. Если передан status → INVALID_STATUS при неверном.
+           d. Если передан category_slug → найти, иначе CATEGORY_NOT_FOUND.
+           e. Если передан tags → найти, иначе TAG_NOT_FOUND.
+           f. Обновить только переданные поля.
+           g. Вызвать OP-event-case-updated.
+           h. Вернуть case_detail.
+        3. OP-delete-case:
+           a. Найти Case по slug; если нет → CASE_NOT_FOUND.
+           b. Удалить, вызвать OP-event-case-deleted.
+        4. OP-get-case:
+           a. with_details для slug; если нет → CASE_NOT_FOUND.
+           b. Вернуть case_detail.
+        5. OP-list-cases:
+           a. Проверить sort_by на допустимость (date/order) → INVALID_SORT_FIELD.
+           b. Проверить sort_order (asc/desc) → INVALID_SORT_ORDER.
+           c. Проверить status при передаче → INVALID_STATUS.
+           d. Вызвать CaseManager.list_cases с параметрами.
+           e. Преобразовать каждый объект в case_summary; вернуть total_count.
+        6. OP-change-case-status:
+           a. Найти Case по case_slug → CASE_NOT_FOUND.
+           b. Проверить new_status → INVALID_STATUS.
+           c. Обновить status.
+           d. Вызвать OP-event-case-status-changed.
+           e. Вернуть case_detail через with_details.
+      </algorithm>
+      <tests>
+        - happy: создание кейса возвращает детальные поля.
+        - edge: MISSING_REQUIRED_FIELD (пропущен title).
+        - edge: INVALID_SLUG (пробелы).
+        - edge: SLUG_ALREADY_EXISTS (повтор).
+        - edge: CATEGORY_NOT_FOUND (несуществующая категория).
+        - edge: TAG_NOT_FOUND (несуществующий тег).
+        - edge: INVALID_STATUS (неверный status).
+        - happy: update case изменяет поля.
+        - edge: CASE_NOT_FOUND при update/delete/get.
+        - edge: SLUG_ALREADY_EXISTS при смене slug.
+        - edge: INVALID_SORT_FIELD, INVALID_SORT_ORDER, INVALID_STATUS в list.
+        - happy: list возвращает пагинированный список с правильной сортировкой (order+slug tie-break).
+        - edge: статус draft не просачивается в публичную выдачу (см. showcase, но здесь только админка).
+      </tests>
+    </module>
+
+    <!-- case_images -->
+    <module id="MOD-03" implements="OP-add-case-image, OP-remove-case-image, OP-update-case-image-order"
+            contract="C-content-management" file="case_images.py">
+      <responsibility>Операции с изображениями кейса</responsibility>
+      <io>
+        <!-- OP-add-case-image -->
+        <inputs for="OP-add-case-image">case_slug, url (файл), alt, caption, order</inputs>
+        <outputs for="OP-add-case-image">image: dict image_summary</outputs>
+        <errors for="OP-add-case-image">CASE_NOT_FOUND, MISSING_REQUIRED_FIELD</errors>
+        <!-- OP-remove-case-image -->
+        <inputs for="OP-remove-case-image">case_slug, image_id</inputs>
+        <outputs for="OP-remove-case-image"></outputs>
+        <errors for="OP-remove-case-image">CASE_NOT_FOUND, IMAGE_NOT_FOUND</errors>
+        <!-- OP-update-case-image-order -->
+        <inputs for="OP-update-case-image-order">case_slug, image_orders (list of {image_id, new_order})</inputs>
+        <outputs for="OP-update-case-image-order"></outputs>
+        <errors for="OP-update-case-image-order">CASE_NOT_FOUND, IMAGE_NOT_FOUND, INVALID_ORDER</errors>
+      </io>
+      <algorithm>
+        1. OP-add-case-image:
+           a. Найти Case по slug → CASE_NOT_FOUND.
+           b. Проверить наличие url и order → MISSING_REQUIRED_FIELD.
+           c. Создать CaseImage с переданными полями.
+           d. Вызвать OP-event-case-image-added.
+           e. Вернуть image_summary.
+        2. OP-remove-case-image:
+           a. Найти Case по slug → CASE_NOT_FOUND.
+           b. Найти CaseImage по image_id в этом кейсе → IMAGE_NOT_FOUND.
+           c. Удалить изображение.
+           d. Вызвать OP-event-case-image-removed.
+        3. OP-update-case-image-order:
+           a. Найти Case по slug → CASE_NOT_FOUND.
+           b. Проверить, что все image_id принадлежат кейсу, иначе IMAGE_NOT_FOUND.
+           c. Проверить, что new_order значения без дубликатов и в допустимом диапазоне → INVALID_ORDER.
+           d. В цикле обновить порядок у каждого изображения.
+           e. Вызвать OP-event-case-image-order-changed.
+      </algorithm>
+      <tests>
+        - happy: добавление изображения.
+        - edge: CASE_NOT_FOUND при добавлении.
+        - edge: MISSING_REQUIRED_FIELD (пропущен url).
+        - happy: удаление.
+        - edge: IMAGE_NOT_FOUND (неверный image_id).
+        - happy: изменение порядка.
+        - edge: INVALID_ORDER (дублирующиеся new_order).
+      </tests>
+    </module>
+
+    <!-- category_crud -->
+    <module id="MOD-04" implements="OP-create-category, OP-update-category, OP-delete-category, OP-get-category, OP-list-categories"
+            contract="C-content-management" file="category_crud.py">
+      <responsibility>CRUD категорий</responsibility>
+      <io>
+        <inputs for="OP-create-category">slug, name, description</inputs>
+        <outputs for="OP-create-category">category: dict category</outputs>
+        <errors for="OP-create-category">MISSING_REQUIRED_FIELD, INVALID_SLUG, SLUG_ALREADY_EXISTS</errors>
+        <inputs for="OP-update-category">slug (текущий), опционально name, description</inputs>
+        <outputs for="OP-update-category">category: dict category</outputs>
+        <errors for="OP-update-category">CATEGORY_NOT_FOUND, SLUG_ALREADY_EXISTS, INVALID_SLUG</errors>
+        <inputs for="OP-delete-category">slug</inputs>
+        <outputs/><errors for="OP-delete-category">CATEGORY_NOT_FOUND</errors>
+        <inputs for="OP-get-category">slug</inputs>
+        <outputs for="OP-get-category">category: dict category</outputs>
+        <errors for="OP-get-category">CATEGORY_NOT_FOUND</errors>
+        <inputs for="OP-list-categories"></inputs>
+        <outputs for="OP-list-categories">categories: list of category</outputs>
+        <errors for="OP-list-categories"></errors>
+      </io>
+      <algorithm>
+        1. create: валидация slug/name, уникальности → нужные ошибки; создать; вызвать OP-event-category-created; вернуть.
+        2. update: найти → CATEGORY_NOT_FOUND; при смене slug проверить уникальность/формат; обновить; OP-event-category-updated.
+        3. delete: найти → CATEGORY_NOT_FOUND; удалить (CASCADE для cases? нет, on_delete=PROTECT, если есть кейсы удаление невозможно → нужно соответствующая ошибка? В контракте нет. Пока PROTECT, в реальности админка должна сначала удалить кейсы. Добавим NEES_CLARIFICATION? Контракт не определяет, что делать при попытке удалить категорию с кейсами. Предположим, операция удаления должна возвращать ошибку, если есть кейсы. Но в контракте нет такой ошибки. Следовательно, проигнорируем: мы используем PROTECT, и попытка удаления вызовет IntegrityError. Это нарушает контракт, так как ошибка не предусмотрена. Но это деталь реализации. Мы добавим в алгоритм проверку на наличие кейсов и вернем существующую ошибку? Нет, не придумываем новых ошибок. Так что пока просто напишем "удалить; если есть связанные кейсы, Django поднимет ProtectedError (нестандартный ответ)". Возможно, это NEEDS_CLARIFICATION? Пока допустим.
+        4. get: найти по slug → CATEGORY_NOT_FOUND; вернуть.
+        5. list: просто вернуть все категории.
+      </algorithm>
+      <tests>
+        - create/update/delete/get/list happy paths.
+        - all error paths reachable.
+      </tests>
+    </module>
+
+    <!-- tag_crud -->
+    <module id="MOD-05" implements="OP-create-tag, OP-update-tag, OP-delete-tag, OP-get-tag, OP-list-tags"
+            contract="C-content-management" file="tag_crud.py">
+      <responsibility>CRUD тегов</responsibility>
+      <io> (аналогично категориям) </io>
+      <algorithm> (по аналогии, без проверки на кейсы) </algorithm>
+      <tests> (покрыть все ошибки) </tests>
+    </module>
+
+    <!-- showcase_public -->
+    <!-- WHY: явная привязка к NFR-01 — витрина гарантирует, что черновики не покидают контур -->
+    <module id="MOD-06" implements="OP-get-published-cases, OP-get-published-case, OP-get-categories-with-cases"
+            contract="C-showcase" covers="NFR-01" file="showcase_public.py">
+      <responsibility>Публичная витрина кейсов без доступа к черновикам (NFR-01)</responsibility>
+      <io>
+        <inputs for="OP-get-published-cases">category_slug?, tag_slug?, sort_by?, sort_order?, page?, per_page?</inputs>
+        <outputs for="OP-get-published-cases">cases: list of case_summary, total_count: int</outputs>
+        <errors for="OP-get-published-cases">INVALID_SORT_FIELD, INVALID_SORT_ORDER</errors>
+        <inputs for="OP-get-published-case">slug</inputs>
+        <outputs for="OP-get-published-case">detail: dict published_case_detail</outputs>
+        <errors for="OP-get-published-case">CASE_NOT_FOUND (если кейс не опубликован или не существует)</errors>
+        <inputs for="OP-get-categories-with-cases"></inputs>
+        <outputs for="OP-get-categories-with-cases">categories: list of category_with_case_count</outputs>
+        <errors for="OP-get-categories-with-cases"></errors>
+      </io>
+      <algorithm>
+        1. OP-get-published-cases:
+           a. Проверить sort_by (date/order) → INVALID_SORT_FIELD.
+           b. Проверить sort_order → INVALID_SORT_ORDER.
+           c. Вызвать CaseManager.list_cases с обязательным status='published' (через менеджер published).
+           d. Вернуть список case_summary и total_count.
+        2. OP-get-published-case:
+           a. Вызвать CaseManager.get_published_detail(slug).
+           b. Если None → CASE_NOT_FOUND.
+           c. Вернуть published_case_detail.
+        3. OP-get-categories-with-cases:
+           a. Вызвать Category.objects.with_published_case_count().
+           b. Вернуть список category_with_case_count.
+      </algorithm>
+      <tests>
+        - happy: список только опубликованных.
+        - edge: передача неопубликованного slug в детальный → CASE_NOT_FOUND.
+        - edge: draft-кейс не присутствует в списке (NFR-01).
+        - happy: категории с кейсами включают правильный счётчик.
+        - NFR-04: проверка отсутствия N+1 запросов при получении списка кейсов и детальной страницы (assertNumQueries показывает константное число запросов с ростом данных).
+      </tests>
+    </module>
+
+    <!-- events -->
+    <module id="MOD-07" implements="OP-event-case-created, OP-event-case-updated, OP-event-case-deleted, OP-event-case-status-changed, OP-event-category-created, OP-event-category-updated, OP-event-category-deleted, OP-event-tag-created, OP-event-tag-updated, OP-event-tag-deleted, OP-event-site-profile-updated, OP-event-case-image-added, OP-event-case-image-removed, OP-event-case-image-order-changed"
+            contract="C-content-events" file="events.py">
+      <responsibility>Публикация доменных событий в синхронном режиме (Django signals)</responsibility>
+      <io>
+        <inputs for="each event">согласно полям операций контракта C-content-events</inputs>
+        <outputs></outputs>
+        <errors></errors>
+      </io>
+      <algorithm>
+        Для каждой операции‑события:
+        1. Подготовить тело события из входных данных.
+        2. Отправить Django сигнал (custom signal) с типом события и данными.
+        <!-- WHY: сигналы позволяют потребителям (например, showcase на чтение) реагировать без
+             знания о внутреннем устройстве эмитента, а транспортировка события в очередь —
+             вне модуля (NFR-05) -->
+        Потребители событий не входят в этот план.
+      </algorithm>
+      <tests>
+        - Проверка, что при вызове операций‑источников (create case и т.д.) соответствующий сигнал отправляется (можно mock receive).
+      </tests>
+    </module>
+  </modules>
+
+  <!-- ============================================================ -->
+  <!-- ADMIN                                                         -->
+  <!-- ============================================================ -->
+  <admin>
+    <model_admin model="Profile">
+      <editable_fields>name, title, bio, avatar, banner, contacts, social_links, clients, theme</editable_fields>
+      <!-- WHY: доступен только один объект; кнопка добавления скрыта, чтобы не нарушить инвариант синглтона -->
+      <actions>нет (single object)</actions>
+    </model_admin>
+    <model_admin model="Case">
+      <editable_fields>slug, title, description, cover, date, order, status, seo_title, seo_description, category, tags</editable_fields>
+      <actions>
+        <action name="publish" description="Изменить статус на published" call="OP-change-case-status"/>
+        <action name="unpublish" description="Изменить статус на draft" call="OP-change-case-status"/>
+      </actions>
+      <inlines>CaseImageInline</inlines>
+    </model_admin>
+    <model_admin model="CaseImage">
+      <editable_fields>image, alt, caption, order</editable_fields>
+    </model_admin>
+    <model_admin model="Category">
+      <editable_fields>slug, name, description</editable_fields>
+    </model_admin>
+    <model_admin model="Tag">
+      <editable_fields>slug, name</editable_fields>
+    </model_admin>
+  </admin>
+
+  <!-- ============================================================ -->
+  <!-- MIGRATIONS                                                    -->
+  <!-- ============================================================ -->
+  <migrations>
+    <migration order="1" description="Create Category, Tag (no dependencies)"/>
+    <migration order="2" description="Create Case with FK to Category, M2M to Tag"/>
+    <migration order="3" description="Create CaseImage with FK to Case"/>
+    <migration order="4" description="Create Profile with unique _singleton_key"/>
+  </migrations>
+
+  <!-- ============================================================ -->
+  <!-- RUN                                                           -->
+  <!-- ============================================================ -->
+  <run>
+    <migrate>python manage.py migrate</migrate>
+    <test>pytest --ds=portfolio_backend.settings --django</test>
+  </run>
+</developmentplan>

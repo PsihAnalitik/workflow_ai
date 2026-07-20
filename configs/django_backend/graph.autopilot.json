@@ -1,0 +1,14 @@
+{
+  "_comment": "Прогон без интерактива (self_check стадий — внутри base-промпта). Рабочий режим цеха — graph.json.",
+  "project": "portfolio_backend",
+  "llm_profiles_path": "configs/django_backend/models.json",
+  "nodes": [
+    {"id": "domains", "config_path": "configs/django_backend/nodes/domains.json"},
+    {"id": "contracts", "config_path": "configs/django_backend/nodes/contracts.json"},
+    {"id": "plan", "config_path": "configs/django_backend/nodes/plan.json"}
+  ],
+  "edges": [
+    {"from": "domains", "to": "contracts"},
+    {"from": "contracts", "to": "plan"}
+  ]
+}

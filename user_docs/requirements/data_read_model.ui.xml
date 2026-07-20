@@ -1,0 +1,116 @@
+<!-- Черновик контракта «backend → витрина» для цеха frontend_site (§1 TZ_frontend_site_factory.md).
+     Составлен параллельно прогону цеха django_backend (run f3e5e7795675).
+     ИСТОЧНИК ИСТИНЫ после прогона — секция <read_model> в projects/portfolio_backend/artifacts/plan.
+     Расхождения разрешаются в пользу плана; этот файл правится, а не план. -->
+<data_read_model module="portfolio_ui" version="1" draft="true">
+
+  <rules>
+    <rule id="RM-R1">Витрина получает ТОЛЬКО перечисленные ниже ключи. Обращение шаблона
+      к полю, отсутствующему здесь, — дефект (проверяется template_contract_lint).</rule>
+    <rule id="RM-R2">Любой набор кейсов содержит только status=published. Черновик недостижим
+      публичным маршрутом, включая прямой заход по slug.</rule>
+    <rule id="RM-R3">Медиа отдаётся ключами вида *_url / *_srcset — строками URL хранилища.
+      Объект файла и путь ФС в шаблон не передаются.</rule>
+    <rule id="RM-R4">Служебные поля не выдаются никогда: первичные ключи, embedding,
+      SEO-черновики, поля аналитики, данные ChatSession.</rule>
+    <rule id="RM-R5">optional=true означает «ключ присутствует всегда, значение может быть пустым»;
+      шаблон обязан иметь состояние на пустое значение (см. states в ia.xml).</rule>
+  </rules>
+
+  <!-- ===================== ПРОФИЛЬ САЙТА ===================== -->
+  <entity name="profile" source="SiteProfile" cardinality="one" covers="FR-U01 FR-U04 FR-U05">
+    <field key="name"          type="string"                source="SiteProfile.name"/>
+    <field key="title"         type="string"                source="SiteProfile.title"/>
+    <field key="bio_html"      type="safe_html"             source="SiteProfile.bio" note="rich text, санитизация на стороне backend"/>
+    <field key="avatar_url"    type="url" optional="true"   source="SiteProfile.avatar (storage url)"/>
+    <field key="avatar_srcset" type="srcset" optional="true" source="производные 480/960/1920 + webp"/>
+    <field key="banner_url"    type="url" optional="true"   source="SiteProfile.banner (storage url)"/>
+    <field key="banner_srcset" type="srcset" optional="true" source="производные"/>
+    <field key="contacts"      type="list&lt;record{kind:string,label:string,value:string,href:url}&gt;"
+                                                            source="SiteProfile.contacts"/>
+    <field key="socials"       type="list&lt;record{network:string,label:string,href:url}&gt;"
+                                                            source="SiteProfile.social_links"/>
+    <field key="clients"       type="list&lt;string&gt;" optional="true" source="SiteProfile.clients"/>
+    <field key="theme"         type="string"                source="SiteProfile.active_theme" note="имя каталога темы"/>
+  </entity>
+
+  <!-- ===================== КАРТОЧКА КЕЙСА (список) ===================== -->
+  <entity name="project_card" source="Project" cardinality="many" covers="FR-U01 FR-U06">
+    <field key="slug"           type="string" source="Project.slug"/>
+    <field key="url"            type="url"    source="reverse('project_detail', slug)"/>
+    <field key="title"          type="string" source="Project.title"/>
+    <field key="excerpt"        type="string" optional="true" source="усечённое Project.description"/>
+    <field key="cover_url"      type="url"    source="Project.cover (storage url)"/>
+    <field key="cover_srcset"   type="srcset" source="производные 480/960/1920 + webp"/>
+    <field key="cover_alt"      type="string" source="Project.cover_alt | Project.title"/>
+    <field key="cover_width"    type="int"    source="метаданные изображения" note="против CLS (FR-U07)"/>
+    <field key="cover_height"   type="int"    source="метаданные изображения"/>
+    <field key="category_slug"  type="string" source="Project.category.slug"/>
+    <field key="category_title" type="string" source="Project.category.title"/>
+    <field key="date"           type="date"   source="Project.date"/>
+  </entity>
+
+  <!-- ===================== СТРАНИЦА КЕЙСА ===================== -->
+  <entity name="project_detail" source="Project" cardinality="one" covers="FR-U02 FR-U03 FR-U08 FR-U10">
+    <field key="slug"             type="string"    source="Project.slug"/>
+    <field key="title"            type="string"    source="Project.title"/>
+    <field key="description_html" type="safe_html" source="Project.description"/>
+    <field key="date"             type="date"      source="Project.date"/>
+    <field key="cover_url"        type="url"       source="storage url"/>
+    <field key="cover_srcset"     type="srcset"    source="производные"/>
+    <field key="cover_alt"        type="string"    source="Project.cover_alt | Project.title"/>
+    <field key="category"         type="record{slug:string,title:string,url:url}" source="Project.category"/>
+    <field key="tags"             type="list&lt;record{slug:string,title:string}&gt;" optional="true" source="Project.tags"/>
+    <field key="images"           type="list&lt;image&gt;" source="ProjectImage по order (prefetch)"/>
+    <field key="seo"              type="record{title:string,description:string,og_image_url:url,canonical:url}"
+                                  source="SEO-поля Project с фолбэком на title/description/cover"/>
+    <field key="schema_org"       type="json_ld"   source="CreativeWork, собран из полей выше"/>
+    <field key="prev"             type="record{slug:string,title:string,url:url}" optional="true" source="соседний кейс (FR-10 ядра)"/>
+    <field key="next"             type="record{slug:string,title:string,url:url}" optional="true" source="соседний кейс"/>
+  </entity>
+
+  <type name="image" fields="url:url, srcset:srcset, alt:string, caption:string(optional), width:int, height:int"
+        source="ProjectImage + производные" note="порядок = ProjectImage.order"/>
+
+  <!-- ===================== ФИЛЬТР КАТЕГОРИЙ ===================== -->
+  <entity name="category_filter" source="Category" cardinality="many" covers="FR-U06 FR-U09">
+    <field key="slug"     type="string" source="Category.slug"/>
+    <field key="title"    type="string" source="Category.title"/>
+    <field key="url"      type="url"    source="reverse('index', category=slug)"/>
+    <field key="count"    type="int"    source="число опубликованных кейсов" note="только категории с count&gt;0 (FR-11 ядра)"/>
+    <field key="is_active" type="bool"  source="совпадение с текущим фильтром"/>
+  </entity>
+
+  <!-- ===================== ВИДЖЕТ ЧАТА (UI-часть) ===================== -->
+  <entity name="chat_widget" source="ai_assist" cardinality="one" covers="FR-U11 FR-U12 FR-U13">
+    <field key="is_available"      type="bool"   source="доступность LLM-провайдера" note="false → виджет заменяется ссылкой на контакты"/>
+    <field key="post_url"          type="url"    source="reverse('chat_message')"/>
+    <field key="contacts_url"      type="url"    source="reverse('contacts')"/>
+    <field key="max_message_chars" type="int"    source="settings из env"/>
+    <field key="greeting"          type="string" source="шаблон приветствия из настроек"/>
+  </entity>
+  <entity name="chat_message_view" source="ChatMessage" cardinality="many" covers="FR-U11">
+    <field key="role"    type="enum{user,assistant}" source="ChatMessage.role"/>
+    <field key="text"    type="string"               source="ChatMessage.text"/>
+    <field key="sources" type="list&lt;record{slug:string,title:string,url:url}&gt;" optional="true"
+                         source="ChatMessage.sources → опубликованные кейсы"/>
+    <!-- НЕ выдаются: id сессии, хеш IP+UA, счётчики, системный промпт -->
+  </entity>
+
+  <!-- ===================== СКВОЗНОЙ КОНТЕКСТ ===================== -->
+  <entity name="site_context" cardinality="one" covers="FR-U08 FR-U10">
+    <field key="nav"          type="list&lt;record{label:string,url:url,is_current:bool}&gt;" source="маршруты ia.xml"/>
+    <field key="theme_name"   type="string" source="profile.theme"/>
+    <field key="color_scheme" type="enum{light,dark,auto}" source="cookie/localStorage, дефолт auto"/>
+    <field key="lang"         type="string" source="settings.LANGUAGE_CODE"/>
+    <field key="schema_org_person" type="json_ld" source="Person из profile"/>
+  </entity>
+
+  <open_questions>
+    <q id="Q1">Ключи производных (srcset) формирует backend строкой или витрина собирает из
+      списка вариантов? Черновик предполагает готовую строку srcset — меньше логики в шаблоне.</q>
+    <q id="Q2">width/height обложек: хранятся в модели или вычисляются при генерации производных?
+      Для NFR CLS нужны на этапе рендера без обращения к файлу.</q>
+    <q id="Q3">excerpt — поле модели или усечение description на стороне view?</q>
+  </open_questions>
+</data_read_model>

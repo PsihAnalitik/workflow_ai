@@ -1,0 +1,11 @@
+{
+  "profiles": {
+    "default": {
+      "provider": "openai",
+      "model": "deepseek-v4-pro",
+      "temperature": 0.0,
+      "max_tokens": 16384,
+      "timeout_s": 300
+    }
+  }
+}

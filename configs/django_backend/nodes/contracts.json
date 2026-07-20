@@ -1,0 +1,9 @@
+{
+  "base_prompt_path": "user_docs/prompts/artifact_generator.base.md",
+  "stage_map_path": "user_docs/prompts/stage.contracts.md",
+  "wiki_refs": [
+    {"path": "wiki/methodology/grace.md", "version": "v1"},
+    {"path": "wiki/methodology/examples/contracts.md", "version": "v1"}
+  ],
+  "llm_profile": "default"
+}

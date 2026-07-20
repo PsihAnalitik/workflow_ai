@@ -1,0 +1,26 @@
+{
+  "_comment": "Цех «django_backend»: контент-ядро портфолио-платформы. Рабочий режим — HITL на каждой стадии. Узлы openapi/tech_selection выключены намеренно: у контент-ядра нет REST-протокола, стек зафиксирован заказчиком и объявлен в stage.c4.django.md.",
+  "project": "portfolio_backend",
+  "llm_profiles_path": "configs/django_backend/models.json",
+  "nodes": [
+    {
+      "id": "domains",
+      "config_path": "configs/django_backend/nodes/domains.json",
+      "gates": {"hitl": true}
+    },
+    {
+      "id": "contracts",
+      "config_path": "configs/django_backend/nodes/contracts.json",
+      "gates": {"hitl": true}
+    },
+    {
+      "id": "plan",
+      "config_path": "configs/django_backend/nodes/plan.json",
+      "gates": {"hitl": true}
+    }
+  ],
+  "edges": [
+    {"from": "domains", "to": "contracts"},
+    {"from": "contracts", "to": "plan"}
+  ]
+}

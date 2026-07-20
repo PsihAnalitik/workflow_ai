@@ -1,0 +1,668 @@
+<!-- contracts.xml: Контракты для доменов content_management (D-01) и showcase (D-02) -->
+<contracts derived_from="domains.xml@1">
+
+  <!-- === Common types === -->
+  <types>
+    <record name="SiteProfile">
+      <field name="name" type="string" required="true"/>
+      <field name="title" type="string" required="true"/>
+      <field name="bio" type="string" required="true"/>
+      <field name="avatar_url" type="string"/>
+      <!-- WHY: url-поля хранятся как строка (URL), а не бинарный объект,
+           чтобы сохранить абстракцию хранилища медиа (NFR-03) -->
+      <field name="banner_url" type="string"/>
+      <field name="contacts" type="list<ContactInfo>"/>
+      <field name="social_links" type="list<SocialLink>"/>
+      <field name="clients" type="list<string>"/>
+      <field name="theme" type="string"/>
+    </record>
+
+    <record name="ContactInfo">
+      <field name="type" type="string" required="true"/>
+      <field name="value" type="string" required="true"/>
+    </record>
+
+    <record name="SocialLink">
+      <field name="platform" type="string" required="true"/>
+      <field name="url" type="string" required="true"/>
+    </record>
+
+    <record name="CaseImage">
+      <field name="id" type="string" required="true"/>
+      <field name="url" type="string" required="true"/>
+      <field name="alt" type="string"/>
+      <field name="caption" type="string"/>
+      <field name="order" type="int" required="true"/>
+    </record>
+
+    <record name="Case">
+      <field name="slug" type="string" required="true"/>
+      <field name="title" type="string" required="true"/>
+      <field name="description" type="string" required="true"/>
+      <field name="cover_url" type="string"/>
+      <field name="date" type="string" required="true"/>
+      <field name="order" type="int" required="true"/>
+      <field name="status" type="enum{draft, published}" required="true"/>
+      <field name="seo_title" type="string"/>
+      <field name="seo_description" type="string"/>
+      <field name="category_slug" type="string" required="true"/>
+      <field name="tags" type="list<string>"/>
+      <field name="images" type="list<CaseImage>"/>
+    </record>
+
+    <record name="CaseSummary">
+      <field name="slug" type="string" required="true"/>
+      <field name="title" type="string" required="true"/>
+      <field name="cover_url" type="string"/>
+      <field name="date" type="string" required="true"/>
+      <field name="order" type="int" required="true"/>
+      <field name="category_slug" type="string" required="true"/>
+      <field name="tags" type="list<string>"/>
+    </record>
+
+    <record name="PublishedCaseDetail">
+      <field name="case" type="Case" required="true"/>
+      <!-- WHY: соседние кейсы включены в детальную страницу, а не отдельным запросом,
+           чтобы избежать лишнего round-trip и обеспечить атомарность представления (FR-09) -->
+      <field name="previous_slug" type="optional<string>"/>
+      <field name="next_slug" type="optional<string>"/>
+    </record>
+
+    <record name="Category">
+      <field name="slug" type="string" required="true"/>
+      <field name="name" type="string" required="true"/>
+      <field name="description" type="string"/>
+    </record>
+
+    <record name="Tag">
+      <field name="slug" type="string" required="true"/>
+      <field name="name" type="string" required="true"/>
+    </record>
+
+    <record name="CategoryWithCaseCount">
+      <field name="category" type="Category" required="true"/>
+      <field name="case_count" type="int" required="true"/>
+    </record>
+  </types>
+
+  <!-- ============================================================ -->
+  <!-- Contract: Admin Operations (content_management, D-01)        -->
+  <!-- ============================================================ -->
+  <contract id="C-content-management" domain="D-01" module="content_management" version="1">
+    <provides>
+
+      <!-- Site Profile -->
+      <operation id="OP-set-site-profile" kind="sync">
+        <purpose>Создать или обновить профиль сайта (синглтон)</purpose>
+        <covers>FR-01</covers>
+        <inputs>
+          <field name="profile" type="SiteProfile" required="true"/>
+        </inputs>
+        <outputs>
+          <field name="profile" type="SiteProfile"/>
+        </outputs>
+        <errors>
+          <error code="MISSING_REQUIRED_FIELD" when="отсутствует name, title или bio"/>
+        </errors>
+      </operation>
+
+      <operation id="OP-get-site-profile" kind="sync">
+        <purpose>Получить профиль сайта</purpose>
+        <covers>FR-01, FR-14</covers>
+        <inputs/>
+        <outputs>
+          <field name="profile" type="SiteProfile"/>
+        </outputs>
+        <errors/>
+      </operation>
+
+      <!-- Cases -->
+      <operation id="OP-create-case" kind="sync">
+        <purpose>Создать новый кейс</purpose>
+        <covers>FR-02</covers>
+        <inputs>
+          <field name="slug" type="string" required="true" constraint="непустой, уникальный, без пробелов"/>
+          <field name="title" type="string" required="true"/>
+          <field name="description" type="string" required="true"/>
+          <field name="cover_url" type="string"/>
+          <field name="date" type="string" required="true"/>
+          <field name="order" type="int" required="true"/>
+          <field name="status" type="enum{draft, published}" required="true"/>
+          <field name="seo_title" type="optional<string>"/>
+          <field name="seo_description" type="optional<string>"/>
+          <field name="category_slug" type="string" required="true"/>
+          <field name="tags" type="list<string>"/>
+        </inputs>
+        <outputs>
+          <field name="case" type="Case"/>
+        </outputs>
+        <errors>
+          <error code="MISSING_REQUIRED_FIELD" when="slug, title, description, date, order, status или category_slug отсутствует"/>
+          <error code="INVALID_SLUG" when="slug не соответствует формату (непустой, без пробелов)"/>
+          <error code="SLUG_ALREADY_EXISTS" when="кейс с таким slug уже существует"/>
+          <error code="CATEGORY_NOT_FOUND" when="category_slug не соответствует ни одной категории"/>
+          <error code="TAG_NOT_FOUND" when="хотя бы один из переданных тегов не существует"/>
+          <error code="INVALID_STATUS" when="status не равен draft или published"/>
+        </errors>
+      </operation>
+
+      <operation id="OP-update-case" kind="sync">
+        <purpose>Обновить существующий кейс</purpose>
+        <covers>FR-02</covers>
+        <inputs>
+          <field name="slug" type="string" required="true"/>
+          <field name="title" type="optional<string>"/>
+          <field name="description" type="optional<string>"/>
+          <field name="cover_url" type="optional<string>"/>
+          <field name="date" type="optional<string>"/>
+          <field name="order" type="optional<int>"/>
+          <field name="status" type="optional<enum{draft, published}>"/>
+          <field name="seo_title" type="optional<string>"/>
+          <field name="seo_description" type="optional<string>"/>
+          <field name="category_slug" type="optional<string>"/>
+          <field name="tags" type="optional<list<string>>"/>
+        </inputs>
+        <outputs>
+          <field name="case" type="Case"/>
+        </outputs>
+        <errors>
+          <error code="CASE_NOT_FOUND" when="кейс с указанным slug не существует"/>
+          <error code="SLUG_ALREADY_EXISTS" when="при смене slug новое значение уже занято"/>
+          <error code="INVALID_SLUG" when="новый slug не соответствует формату"/>
+          <error code="CATEGORY_NOT_FOUND" when="новая категория не существует"/>
+          <error code="TAG_NOT_FOUND" when="новый список тегов содержит несуществующие теги"/>
+          <error code="INVALID_STATUS" when="передан недопустимый статус"/>
+        </errors>
+      </operation>
+
+      <operation id="OP-delete-case" kind="sync">
+        <purpose>Удалить кейс</purpose>
+        <covers>FR-02</covers>
+        <inputs>
+          <field name="slug" type="string" required="true"/>
+        </inputs>
+        <outputs/>
+        <errors>
+          <error code="CASE_NOT_FOUND" when="кейс с указанным slug не существует"/>
+        </errors>
+      </operation>
+
+      <operation id="OP-get-case" kind="sync">
+        <purpose>Получить кейс по slug (админка)</purpose>
+        <covers>FR-02, FR-13</covers>
+        <inputs>
+          <field name="slug" type="string" required="true"/>
+        </inputs>
+        <outputs>
+          <field name="case" type="Case"/>
+        </outputs>
+        <errors>
+          <error code="CASE_NOT_FOUND" when="кейс не найден"/>
+        </errors>
+      </operation>
+
+      <!-- WHY: явные дефолты sort_by=order, sort_order=asc и тай-брейк по slug (asc)
+           гарантируют детерминированную выдачу (NFR-02) при любом вводе -->
+      <operation id="OP-list-cases" kind="sync">
+        <purpose>Получить список кейсов с фильтрацией и сортировкой (админка). При сортировке по order (по умолчанию) равные значения order доупорядочиваются по slug (asc); при сортировке по date равные даты также доупорядочиваются по slug (asc).</purpose>
+        <covers>FR-02, FR-12</covers>
+        <inputs>
+          <field name="category_slug" type="optional<string>"/>
+          <field name="tag_slug" type="optional<string>"/>
+          <field name="status" type="optional<enum{draft, published}>"/>
+          <field name="sort_by" type="optional<enum{date, order}>" required="false" default="order"/>
+          <field name="sort_order" type="optional<enum{asc, desc}>" required="false" default="asc"/>
+          <field name="page" type="int" required="false" default="1"/>
+          <field name="per_page" type="int" required="false" default="20"/>
+        </inputs>
+        <outputs>
+          <field name="cases" type="list<CaseSummary>"/>
+          <field name="total_count" type="int"/>
+        </outputs>
+        <errors>
+          <error code="INVALID_SORT_FIELD" when="sort_by не равен date или order"/>
+          <error code="INVALID_SORT_ORDER" when="sort_order не равен asc или desc"/>
+          <error code="INVALID_STATUS" when="status не равен draft или published"/>
+        </errors>
+      </operation>
+
+      <!-- Case Images -->
+      <operation id="OP-add-case-image" kind="sync">
+        <purpose>Добавить изображение к кейсу</purpose>
+        <covers>FR-03</covers>
+        <inputs>
+          <field name="case_slug" type="string" required="true"/>
+          <field name="url" type="string" required="true"/>
+          <field name="alt" type="optional<string>"/>
+          <field name="caption" type="optional<string>"/>
+          <field name="order" type="int" required="true"/>
+        </inputs>
+        <outputs>
+          <field name="image" type="CaseImage"/>
+        </outputs>
+        <errors>
+          <error code="CASE_NOT_FOUND" when="кейс с указанным slug не существует"/>
+          <error code="MISSING_REQUIRED_FIELD" when="url или order отсутствует"/>
+        </errors>
+      </operation>
+
+      <operation id="OP-remove-case-image" kind="sync">
+        <purpose>Удалить изображение кейса</purpose>
+        <covers>FR-03</covers>
+        <inputs>
+          <field name="case_slug" type="string" required="true"/>
+          <field name="image_id" type="string" required="true"/>
+        </inputs>
+        <outputs/>
+        <errors>
+          <error code="CASE_NOT_FOUND" when="кейс не найден"/>
+          <error code="IMAGE_NOT_FOUND" when="изображение с таким id не принадлежит кейсу"/>
+        </errors>
+      </operation>
+
+      <operation id="OP-update-case-image-order" kind="sync">
+        <purpose>Изменить порядок изображений кейса</purpose>
+        <covers>FR-03</covers>
+        <inputs>
+          <field name="case_slug" type="string" required="true"/>
+          <field name="image_orders" type="list<record{image_id:string, new_order:int}>" required="true"/>
+        </inputs>
+        <outputs/>
+        <errors>
+          <error code="CASE_NOT_FOUND" when="кейс не найден"/>
+          <error code="IMAGE_NOT_FOUND" when="один из image_id не принадлежит кейсу"/>
+          <error code="INVALID_ORDER" when="значения new_order дублируются или выходят за допустимый диапазон"/>
+        </errors>
+      </operation>
+
+      <!-- Status -->
+      <operation id="OP-change-case-status" kind="sync">
+        <purpose>Изменить статус публикации кейса</purpose>
+        <covers>FR-06</covers>
+        <inputs>
+          <field name="case_slug" type="string" required="true"/>
+          <field name="new_status" type="enum{draft, published}" required="true"/>
+        </inputs>
+        <outputs>
+          <field name="case" type="Case"/>
+        </outputs>
+        <errors>
+          <error code="CASE_NOT_FOUND" when="кейс не найден"/>
+          <error code="INVALID_STATUS" when="new_status не draft или published"/>
+        </errors>
+      </operation>
+
+      <!-- Categories -->
+      <operation id="OP-create-category" kind="sync">
+        <purpose>Создать категорию</purpose>
+        <covers>FR-04</covers>
+        <inputs>
+          <field name="slug" type="string" required="true" constraint="непустой, уникальный, без пробелов"/>
+          <field name="name" type="string" required="true"/>
+          <field name="description" type="optional<string>"/>
+        </inputs>
+        <outputs>
+          <field name="category" type="Category"/>
+        </outputs>
+        <errors>
+          <error code="MISSING_REQUIRED_FIELD" when="slug или name отсутствует"/>
+          <error code="INVALID_SLUG" when="slug не соответствует формату"/>
+          <error code="SLUG_ALREADY_EXISTS" when="категория с таким slug уже существует"/>
+        </errors>
+      </operation>
+
+      <operation id="OP-update-category" kind="sync">
+        <purpose>Обновить категорию</purpose>
+        <covers>FR-04</covers>
+        <inputs>
+          <field name="slug" type="string" required="true"/>
+          <field name="name" type="optional<string>"/>
+          <field name="description" type="optional<string>"/>
+        </inputs>
+        <outputs>
+          <field name="category" type="Category"/>
+        </outputs>
+        <errors>
+          <error code="CATEGORY_NOT_FOUND" when="категория не найдена"/>
+          <error code="SLUG_ALREADY_EXISTS" when="при смене slug новое значение уже занято"/>
+          <error code="INVALID_SLUG" when="новый slug некорректен"/>
+        </errors>
+      </operation>
+
+      <operation id="OP-delete-category" kind="sync">
+        <purpose>Удалить категорию</purpose>
+        <covers>FR-04</covers>
+        <inputs>
+          <field name="slug" type="string" required="true"/>
+        </inputs>
+        <outputs/>
+        <errors>
+          <error code="CATEGORY_NOT_FOUND" when="категория не найдена"/>
+        </errors>
+      </operation>
+
+      <operation id="OP-get-category" kind="sync">
+        <purpose>Получить категорию по slug</purpose>
+        <covers>FR-04</covers>
+        <inputs>
+          <field name="slug" type="string" required="true"/>
+        </inputs>
+        <outputs>
+          <field name="category" type="Category"/>
+        </outputs>
+        <errors>
+          <error code="CATEGORY_NOT_FOUND" when="категория не найдена"/>
+        </errors>
+      </operation>
+
+      <operation id="OP-list-categories" kind="sync">
+        <purpose>Получить список всех категорий</purpose>
+        <covers>FR-04</covers>
+        <inputs/>
+        <outputs>
+          <field name="categories" type="list<Category>"/>
+        </outputs>
+        <errors/>
+      </operation>
+
+      <!-- Tags -->
+      <operation id="OP-create-tag" kind="sync">
+        <purpose>Создать тег</purpose>
+        <covers>FR-05</covers>
+        <inputs>
+          <field name="slug" type="string" required="true" constraint="непустой, уникальный, без пробелов"/>
+          <field name="name" type="string" required="true"/>
+        </inputs>
+        <outputs>
+          <field name="tag" type="Tag"/>
+        </outputs>
+        <errors>
+          <error code="MISSING_REQUIRED_FIELD" when="slug или name отсутствует"/>
+          <error code="INVALID_SLUG" when="slug не соответствует формату"/>
+          <error code="SLUG_ALREADY_EXISTS" when="тег с таким slug уже существует"/>
+        </errors>
+      </operation>
+
+      <operation id="OP-update-tag" kind="sync">
+        <purpose>Обновить тег</purpose>
+        <covers>FR-05</covers>
+        <inputs>
+          <field name="slug" type="string" required="true"/>
+          <field name="name" type="optional<string>"/>
+        </inputs>
+        <outputs>
+          <field name="tag" type="Tag"/>
+        </outputs>
+        <errors>
+          <error code="TAG_NOT_FOUND" when="тег не найден"/>
+          <error code="SLUG_ALREADY_EXISTS" when="при смене slug новое значение уже занято"/>
+          <error code="INVALID_SLUG" when="новый slug некорректен"/>
+        </errors>
+      </operation>
+
+      <operation id="OP-delete-tag" kind="sync">
+        <purpose>Удалить тег</purpose>
+        <covers>FR-05</covers>
+        <inputs>
+          <field name="slug" type="string" required="true"/>
+        </inputs>
+        <outputs/>
+        <errors>
+          <error code="TAG_NOT_FOUND" when="тег не найден"/>
+        </errors>
+      </operation>
+
+      <operation id="OP-get-tag" kind="sync">
+        <purpose>Получить тег по slug</purpose>
+        <covers>FR-05</covers>
+        <inputs>
+          <field name="slug" type="string" required="true"/>
+        </inputs>
+        <outputs>
+          <field name="tag" type="Tag"/>
+        </outputs>
+        <errors>
+          <error code="TAG_NOT_FOUND" when="тег не найден"/>
+        </errors>
+      </operation>
+
+      <operation id="OP-list-tags" kind="sync">
+        <purpose>Получить список всех тегов</purpose>
+        <covers>FR-05</covers>
+        <inputs/>
+        <outputs>
+          <field name="tags" type="list<Tag>"/>
+        </outputs>
+        <errors/>
+      </operation>
+
+    </provides>
+    <consumes/>
+  </contract>
+
+  <!-- ============================================================ -->
+  <!-- Contract: Public Showcase (showcase, D-02)                   -->
+  <!-- ============================================================ -->
+  <contract id="C-showcase" domain="D-02" module="showcase" version="1">
+    <provides>
+      <!-- WHY: явные дефолты sort_by=order, sort_order=asc и тай-брейк по slug (asc)
+           гарантируют детерминированную выдачу (NFR-02) при любом вводе -->
+      <operation id="OP-get-published-cases" kind="sync">
+        <purpose>Получить список опубликованных кейсов с фильтрацией и сортировкой. При сортировке по order (по умолчанию) равные значения order доупорядочиваются по slug (asc); при сортировке по date равные даты также доупорядочиваются по slug (asc).</purpose>
+        <covers>FR-07</covers>
+        <inputs>
+          <field name="category_slug" type="optional<string>"/>
+          <field name="tag_slug" type="optional<string>"/>
+          <field name="sort_by" type="optional<enum{date, order}>" required="false" default="order"/>
+          <field name="sort_order" type="optional<enum{asc, desc}>" required="false" default="asc"/>
+          <field name="page" type="int" required="false" default="1"/>
+          <field name="per_page" type="int" required="false" default="20"/>
+        </inputs>
+        <outputs>
+          <field name="cases" type="list<CaseSummary>"/>
+          <field name="total_count" type="int"/>
+        </outputs>
+        <errors>
+          <error code="INVALID_SORT_FIELD" when="sort_by не равен date или order"/>
+          <error code="INVALID_SORT_ORDER" when="sort_order не равен asc или desc"/>
+        </errors>
+      </operation>
+
+      <operation id="OP-get-published-case" kind="sync">
+        <purpose>Получить детальную страницу опубликованного кейса с соседними кейсами</purpose>
+        <covers>FR-08, FR-09</covers>
+        <inputs>
+          <field name="slug" type="string" required="true"/>
+        </inputs>
+        <outputs>
+          <field name="detail" type="PublishedCaseDetail"/>
+        </outputs>
+        <errors>
+          <error code="CASE_NOT_FOUND" when="кейс с таким slug не существует или не опубликован"/>
+        </errors>
+      </operation>
+
+      <!-- Переименовано для устранения дублирования id с административным OP-get-site-profile -->
+      <operation id="OP-get-public-site-profile" kind="sync">
+        <purpose>Получить публичный профиль сайта</purpose>
+        <covers>FR-10</covers>
+        <inputs/>
+        <outputs>
+          <field name="profile" type="SiteProfile"/>
+        </outputs>
+        <errors/>
+      </operation>
+
+      <operation id="OP-get-categories-with-cases" kind="sync">
+        <purpose>Получить список категорий, имеющих хотя бы один опубликованный кейс</purpose>
+        <covers>FR-11</covers>
+        <inputs/>
+        <outputs>
+          <field name="categories" type="list<CategoryWithCaseCount>"/>
+        </outputs>
+        <errors/>
+      </operation>
+    </provides>
+    <consumes>
+      <!-- WHY: асинхронная связь через события выбрана для минимизации coupling
+           и обеспечения независимой масштабируемости витрины (NFR-05) -->
+      <contract id="C-content-events"/>
+    </consumes>
+  </contract>
+
+  <!-- ============================================================ -->
+  <!-- Contract: Content Change Events (async)                      -->
+  <!-- ============================================================ -->
+  <!-- Эмитентом событий является D-01 (content_management) -->
+  <contract id="C-content-events" domain="D-01" module="content_events" version="1">
+    <provides>
+      <!-- WHY: каждое доменное событие моделируется как отдельная операция с kind="async",
+           чтобы потребитель мог подписаться на конкретные типы изменений -->
+      <operation id="OP-event-case-created" kind="async">
+        <purpose>Событие: создан новый кейс</purpose>
+        <covers>FR-02</covers>
+        <inputs>
+          <field name="case" type="Case" required="true"/>
+        </inputs>
+        <outputs/>
+        <errors/>
+      </operation>
+
+      <operation id="OP-event-case-updated" kind="async">
+        <purpose>Событие: кейс обновлён</purpose>
+        <covers>FR-02</covers>
+        <inputs>
+          <field name="case" type="Case" required="true"/>
+        </inputs>
+        <outputs/>
+        <errors/>
+      </operation>
+
+      <operation id="OP-event-case-deleted" kind="async">
+        <purpose>Событие: кейс удалён</purpose>
+        <covers>FR-02</covers>
+        <inputs>
+          <field name="case_slug" type="string" required="true"/>
+        </inputs>
+        <outputs/>
+        <errors/>
+      </operation>
+
+      <operation id="OP-event-case-status-changed" kind="async">
+        <purpose>Событие: изменён статус публикации кейса</purpose>
+        <covers>FR-06</covers>
+        <inputs>
+          <field name="case_slug" type="string" required="true"/>
+          <field name="new_status" type="enum{draft, published}" required="true"/>
+        </inputs>
+        <outputs/>
+        <errors/>
+      </operation>
+
+      <operation id="OP-event-category-created" kind="async">
+        <purpose>Событие: создана новая категория</purpose>
+        <covers>FR-04</covers>
+        <inputs>
+          <field name="category" type="Category" required="true"/>
+        </inputs>
+        <outputs/>
+        <errors/>
+      </operation>
+
+      <operation id="OP-event-category-updated" kind="async">
+        <purpose>Событие: категория обновлена</purpose>
+        <covers>FR-04</covers>
+        <inputs>
+          <field name="category" type="Category" required="true"/>
+        </inputs>
+        <outputs/>
+        <errors/>
+      </operation>
+
+      <operation id="OP-event-category-deleted" kind="async">
+        <purpose>Событие: категория удалена</purpose>
+        <covers>FR-04</covers>
+        <inputs>
+          <field name="category_slug" type="string" required="true"/>
+        </inputs>
+        <outputs/>
+        <errors/>
+      </operation>
+
+      <operation id="OP-event-tag-created" kind="async">
+        <purpose>Событие: создан новый тег</purpose>
+        <covers>FR-05</covers>
+        <inputs>
+          <field name="tag" type="Tag" required="true"/>
+        </inputs>
+        <outputs/>
+        <errors/>
+      </operation>
+
+      <operation id="OP-event-tag-updated" kind="async">
+        <purpose>Событие: тег обновлён</purpose>
+        <covers>FR-05</covers>
+        <inputs>
+          <field name="tag" type="Tag" required="true"/>
+        </inputs>
+        <outputs/>
+        <errors/>
+      </operation>
+
+      <operation id="OP-event-tag-deleted" kind="async">
+        <purpose>Событие: тег удалён</purpose>
+        <covers>FR-05</covers>
+        <inputs>
+          <field name="tag_slug" type="string" required="true"/>
+        </inputs>
+        <outputs/>
+        <errors/>
+      </operation>
+
+      <operation id="OP-event-site-profile-updated" kind="async">
+        <purpose>Событие: профиль сайта обновлён</purpose>
+        <covers>FR-01</covers>
+        <inputs>
+          <field name="profile" type="SiteProfile" required="true"/>
+        </inputs>
+        <outputs/>
+        <errors/>
+      </operation>
+
+      <operation id="OP-event-case-image-added" kind="async">
+        <purpose>Событие: к кейсу добавлено изображение</purpose>
+        <covers>FR-03</covers>
+        <inputs>
+          <field name="case_slug" type="string" required="true"/>
+          <field name="image" type="CaseImage" required="true"/>
+        </inputs>
+        <outputs/>
+        <errors/>
+      </operation>
+
+      <operation id="OP-event-case-image-removed" kind="async">
+        <purpose>Событие: изображение кейса удалено</purpose>
+        <covers>FR-03</covers>
+        <inputs>
+          <field name="case_slug" type="string" required="true"/>
+          <field name="image_id" type="string" required="true"/>
+        </inputs>
+        <outputs/>
+        <errors/>
+      </operation>
+
+      <operation id="OP-event-case-image-order-changed" kind="async">
+        <purpose>Событие: изменён порядок изображений кейса</purpose>
+        <covers>FR-03</covers>
+        <inputs>
+          <field name="case_slug" type="string" required="true"/>
+          <field name="image_orders" type="list<record{image_id:string, new_order:int}>" required="true"/>
+        </inputs>
+        <outputs/>
+        <errors/>
+      </operation>
+    </provides>
+    <consumes/>
+  </contract>
+
+</contracts>
