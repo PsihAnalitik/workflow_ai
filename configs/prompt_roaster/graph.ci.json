@@ -1,0 +1,14 @@
+{
+  "_comment": "TSK-129: изолированный project для advisory roast-gate (change-scoped прогоны перед коммитом). Копия graph.json c project=prompt_roaster_ci — гейт НЕ мутирует baseline-отчёты основного project.",
+  "project": "prompt_roaster_ci",
+  "llm_profiles_path": "configs/prompt_roaster/models.json",
+  "material": {"chunk_chars": 4000, "chunk_overlap": 400, "inline_limit_chars": 0},
+  "nodes": [
+    {
+      "id": "roast",
+      "config_path": "configs/prompt_roaster/nodes/roast.json",
+      "gates": {"review_config_path": "configs/prompt_roaster/nodes/roast_review.json"}
+    }
+  ],
+  "edges": []
+}

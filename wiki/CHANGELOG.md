@@ -223,3 +223,21 @@ python/django/index.md у трёх дочерних страниц. Гейт wik
 | `python/django/testing.md` | — | `4f3ba1cad720d8ff` |
 | `python/django/views_urls.md` | — | `c45018de634b00b2` |
 | `python/index.md` | — | `227e7fb8aaa5e245` |
+
+## 2026-07-24 — синхронизация промптинговой области из smart-assistant/.workflow_ai
+
+**Основание: перенос обновлений методологии прожарки (review v4: канонический
+шаблон, П9–П10, хвостовая `<task>`; examples v2; новый grounding-протокол
+found_data) из копии фабрики smart-assistant. agents/index.md — merge (сохранена
+related-ссылка на методологию). Проверка: wiki-check, 42 страницы.**
+
+| Файл | Роль | sha256[:16] |
+|---|---|---|
+| `agents/index.md` | — | `7fc976efcdc36099` |
+| `agents/prompts/index.md` | — | `8bf4adc440d4a384` |
+| `agents/prompts/review.md` | — | `ce0ea9c0bd031082` |
+| `agents/prompts/grounding_tags.md` | — | `70ef84ebe570e2c4` |
+| `agents/prompts/examples/index.md` | — | `747bfdceab55ceeb` |
+| `agents/prompts/examples/bad.md` | — | `d12c7ae1f8aba599` |
+| `agents/prompts/examples/good.md` | — | `93b2d0fe8a6e8947` |
+| `agents/prompts/examples/practices.md` | — | `12db0f05d4603b57` |
