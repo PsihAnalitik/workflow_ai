@@ -72,9 +72,11 @@ def run_workshop(
     if isinstance(llm_result, Ok):
         response_text = llm_result.value.text
         tool_trace = list(llm_result.value.tool_trace)
+        usage = dict(llm_result.value.usage)
     else:
         response_text = f"<LLM ERROR {llm_result.code}: {llm_result.details}>"
         tool_trace = []
+        usage = {}
 
     # лог пишется ДО парсинга: прогон воспроизводим даже при отказе (NFR-04)
     log_result = run_log.append(
@@ -86,6 +88,7 @@ def run_workshop(
             params=config.llm.model_dump(),
             response=response_text,
             tool_trace=tool_trace,
+            usage=usage,
         )
     )
     if isinstance(log_result, Err):

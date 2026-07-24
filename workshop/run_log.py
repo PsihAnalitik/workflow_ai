@@ -22,6 +22,9 @@ class RunRecord:
     # TSK-0402: вызовы инструментов узла «имя(аргументы) → результат»;
     # дефолт пуст — старые записи jsonl совместимы
     tool_trace: list[str] = field(default_factory=list)
+    # usage провайдера (prompt_tokens/completion_tokens) — метрики стоимости
+    # прогонов; дефолт пуст — старые записи jsonl совместимы
+    usage: dict[str, int] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)

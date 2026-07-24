@@ -40,11 +40,22 @@ class NodeConfig(BaseModel):
     llm: LLMParams | None = None
     llm_profile: str | None = None
     task_class: str | None = None
+    # эксперимент «слабый рабочий + сильный консультант»: модель второго мнения
+    # для codegen-узла; после load_node_config consultant_llm заполнен, если задан профиль
+    consultant_llm: LLMParams | None = None
+    consultant_profile: str | None = None
+    # описание окружения песочницы для консультанта (предустановленные пакеты):
+    # рантайм состав образа не знает, декларирует конфиг цеха
+    sandbox_notes: str | None = None
 
     @model_validator(mode="after")
     def _at_most_one_explicit_llm_source(self) -> "NodeConfig":
         if self.llm is not None and self.llm_profile is not None:
             raise ValueError("llm и llm_profile заданы одновременно — оставьте один источник")
+        if self.consultant_llm is not None and self.consultant_profile is not None:
+            raise ValueError(
+                "consultant_llm и consultant_profile заданы одновременно — оставьте один источник"
+            )
         return self
 
     # wiki_refs и wiki_refs_from сосуществуют: динамические ссылки ДОБАВЛЯЮТСЯ

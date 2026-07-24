@@ -191,6 +191,32 @@ def test_node_config_profile_without_registry(tmp_path: Path) -> None:
     assert "llm_profiles_path" in result.details
 
 
+def test_node_config_resolves_consultant_profile(tmp_path: Path) -> None:
+    result = load_node_config(
+        _profile_node(tmp_path, llm_profile="cheap", consultant_profile="strong"), REGISTRY
+    )
+    assert isinstance(result, Ok)
+    assert result.value.llm == REGISTRY.profiles["cheap"]
+    assert result.value.consultant_llm == REGISTRY.profiles["strong"]
+
+
+def test_node_config_unknown_consultant_profile(tmp_path: Path) -> None:
+    result = load_node_config(
+        _profile_node(tmp_path, llm_profile="cheap", consultant_profile="ghost"), REGISTRY
+    )
+    assert isinstance(result, Err)
+    assert result.code == UNKNOWN_LLM_PROFILE
+    assert result.details == "ghost"
+
+
+def test_node_config_inline_llm_still_resolves_consultant(tmp_path: Path) -> None:
+    payload = dict(VALID_NODE)
+    payload["consultant_profile"] = "strong"
+    result = load_node_config(_write(tmp_path, payload), REGISTRY)
+    assert isinstance(result, Ok)
+    assert result.value.consultant_llm == REGISTRY.profiles["strong"]
+
+
 def test_node_config_both_llm_sources_invalid(tmp_path: Path) -> None:
     payload = dict(VALID_NODE)
     payload["llm_profile"] = "cheap"

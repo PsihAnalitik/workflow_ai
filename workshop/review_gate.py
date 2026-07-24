@@ -79,8 +79,10 @@ def run_review(
     llm_result = llm.complete(prompt.value, review_config.llm)
     if isinstance(llm_result, Ok):
         response_text = llm_result.value.text
+        usage = dict(llm_result.value.usage)
     else:
         response_text = f"<LLM ERROR {llm_result.code}: {llm_result.details}>"
+        usage = {}
 
     log_result = run_log.append(
         RunRecord(
@@ -90,6 +92,7 @@ def run_review(
             input_ref=f"{artifact.ref.name}@v{artifact.ref.version}",
             params=review_config.llm.model_dump(),
             response=response_text,
+            usage=usage,
         )
     )
     if isinstance(log_result, Err):

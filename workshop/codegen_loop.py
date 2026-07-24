@@ -105,8 +105,10 @@ def run_codegen(
         llm_result = llm.complete(prompt.value, config.llm)
         if isinstance(llm_result, Ok):
             response_text = llm_result.value.text
+            usage = dict(llm_result.value.usage)
         else:
             response_text = f"<LLM ERROR {llm_result.code}: {llm_result.details}>"
+            usage = {}
 
         log_result = run_log.append(
             RunRecord(
@@ -116,6 +118,7 @@ def run_codegen(
                 input_ref=f"{c4.ref.name}@v{c4.ref.version}",
                 params=config.llm.model_dump(),
                 response=response_text,
+                usage=usage,
             )
         )
         if isinstance(log_result, Err):
@@ -133,13 +136,65 @@ def run_codegen(
         if exec_result.value.exit_code == 0:
             return Ok(CodeArtifact(files=files, test_report=exec_result.value))
 
+        # консультант второго мнения: один вызов перед последней попыткой,
+        # свежий контекст (C4 + текущий file map + отчёт), без цепочки rework.
+        # Best-effort: ошибка консультанта логируется, но узел не роняет
+        advice = ""
+        if config.consultant_llm is not None and iteration == max_iterations - 1:
+            sandbox_env = (
+                f"\n<sandbox_env>\n{config.sandbox_notes}\n</sandbox_env>\n"
+                if config.sandbox_notes is not None
+                else ""
+            )
+            consult_prompt = (
+                "Ты консультант по отладке. Кодогенератор дважды не смог пройти тесты.\n"
+                "Найди первопричину и дай короткие директивы по исправлению "
+                "(без полного кода).\n"
+                f"Тесты выполняются командой `{test_command}` в docker-образе "
+                f"`{image}`: набор пакетов фиксирован образом, pip install / "
+                "requirements не выполняются — не диагностируй отсутствие пакета, "
+                "если он не указан в <sandbox_env>.\n"
+                "Сначала проверь полноту file map в <current_files>: артефакт обязан "
+                "содержать ВСЕ файлы (модули и тесты по контракту); если файлов не "
+                "хватает, первая директива — выдать полный file map.\n"
+                f"{sandbox_env}\n"
+                f"<contract>\n{c4.content}\n</contract>\n"
+                f"<current_files>\n{serialize_files(files)}\n</current_files>\n"
+                f"<test_report>\nexit_code={exec_result.value.exit_code}\n"
+                f"stdout:\n{exec_result.value.stdout}\n"
+                f"stderr:\n{exec_result.value.stderr}\n</test_report>"
+            )
+            consult_result = llm.complete(consult_prompt, config.consultant_llm)
+            if isinstance(consult_result, Ok):
+                consult_response = consult_result.value.text
+                consult_usage = dict(consult_result.value.usage)
+                advice = f"\n<consultant_advice>\n{consult_response}\n</consultant_advice>"
+            else:
+                consult_response = (
+                    f"<LLM ERROR {consult_result.code}: {consult_result.details}>"
+                )
+                consult_usage = {}
+            consult_log = run_log.append(
+                RunRecord(
+                    node_id=f"{node_id}:consult",
+                    iteration=iteration,
+                    prompt=consult_prompt,
+                    input_ref=f"{c4.ref.name}@v{c4.ref.version}",
+                    params=config.consultant_llm.model_dump(),
+                    response=consult_response,
+                    usage=consult_usage,
+                )
+            )
+            if isinstance(consult_log, Err):
+                return consult_log
+
         # rework-контекст (TSK-1101): прошлый file map дословно + отчёт тестов —
         # кодогенератор правит адресно, нетронутые файлы копирует
         iteration_context = (
             f"<previous_artifact>\n{serialize_files(files)}\n</previous_artifact>\n"
             f"<test_report>\nТесты не прошли (exit_code={exec_result.value.exit_code}).\n"
             f"stdout:\n{exec_result.value.stdout}\n"
-            f"stderr:\n{exec_result.value.stderr}\n</test_report>"
+            f"stderr:\n{exec_result.value.stderr}\n</test_report>{advice}"
         )
 
     return Err(MAX_ITERATIONS_EXCEEDED, node_id)

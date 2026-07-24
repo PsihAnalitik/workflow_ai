@@ -27,6 +27,20 @@ def load_node_config(
     except ValidationError as exc:
         return Err(CONFIG_INVALID, f"{path}: {_first_error(exc)}")
 
+    # консультант резолвится до ветвления по llm: ветка inline-llm возвращает
+    # конфиг сразу и иначе оставила бы consultant_profile неразрешённым
+    if config.consultant_profile is not None:
+        if registry is None:
+            return Err(
+                CONFIG_INVALID,
+                f"{path}: указан consultant_profile, но реестр не подключён "
+                f"(llm_profiles_path в конфиге графа)",
+            )
+        consultant = registry.profiles.get(config.consultant_profile)
+        if consultant is None:
+            return Err(UNKNOWN_LLM_PROFILE, config.consultant_profile)
+        config = config.model_copy(update={"consultant_llm": consultant})
+
     # приоритет источников: inline llm > llm_profile > политика по task_class (FR-16)
     if config.llm is not None:
         return Ok(config)
