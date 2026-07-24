@@ -1,0 +1,400 @@
+```file:api.py
+from fastapi import FastAPI, Query
+from fastapi.responses import JSONResponse
+from search import SearchEngine, SearchResult
+from lemmatization import lemmatize
+
+app = FastAPI()
+
+# Static in-memory corpus
+CORPUS = {
+    "1": "мирный мир",
+    "2": "бег трусцой",
+    "3": "qwerty test",
+}
+
+search_engine = SearchEngine(CORPUS)
+
+
+def _error_response(code: str, message: str) -> JSONResponse:
+    return JSONResponse(status_code=400, content={"code": code, "message": message})
+
+
+@app.get("/search/exact")
+def exact_search(query: str = Query(...)):
+    result = search_engine.exact_search(query)
+    if result is None:
+        return _error_response("EMPTY_QUERY", "query is empty")
+    return JSONResponse(status_code=200, content=[r.to_dict() for r in result])
+
+
+@app.get("/search/word")
+def word_search(query: str = Query(...)):
+    result = search_engine.word_search(query)
+    if result is None:
+        return _error_response("EMPTY_QUERY", "query is empty")
+    return JSONResponse(status_code=200, content=[r.to_dict() for r in result])
+
+
+@app.get("/search/root")
+def root_search(query: str = Query(...), lang: str = Query(...)):
+    if not query:
+        return _error_response("EMPTY_QUERY", "query is empty")
+    if not lang:
+        return _error_response("EMPTY_LANGUAGE", "language is empty")
+    if lang != 'ru':
+        return _error_response("UNSUPPORTED_LANGUAGE", f"language '{lang}' is not supported")
+    result = search_engine.root_search(query, lang)
+    if result is None:
+        return _error_response("EMPTY_QUERY", "query is empty")
+    return JSONResponse(status_code=200, content=[r.to_dict() for r in result])
+
+
+@app.get("/lemmatize")
+def lemmatize_endpoint(word: str = Query(...), lang: str = Query(...)):
+    if not word:
+        return _error_response("EMPTY_WORD", "word is empty")
+    if not lang:
+        return _error_response("EMPTY_LANGUAGE", "language is empty")
+    if lang != 'ru':
+        return _error_response("UNSUPPORTED_LANGUAGE", f"language '{lang}' is not supported")
+    lemma = lemmatize(word, lang)
+    if lemma is None:
+        return _error_response("EMPTY_WORD", "word is empty")
+    return JSONResponse(status_code=200, content={"lemma": lemma})
+```
+
+```file:lemmatization.py
+from typing import Optional
+import pymorphy3
+
+
+_analyzer = pymorphy3.MorphAnalyzer()
+
+
+def lemmatize(word: str, lang: str) -> Optional[str]:
+    if not word:
+        return None
+    if not lang:
+        return None
+    if lang != 'ru':
+        return None
+    parsed = _analyzer.parse(word)
+    if parsed:
+        return parsed[0].normal_form
+    return word
+```
+
+```file:search.py
+import re
+from typing import Dict, List, Tuple, Optional
+from lemmatization import lemmatize
+
+
+class SearchResult:
+    def __init__(self, text_id: str, positions: List[int]):
+        self.text_id = text_id
+        self.positions = positions
+
+    def to_dict(self) -> dict:
+        return {"text_id": self.text_id, "positions": self.positions}
+
+
+class SearchEngine:
+    def __init__(self, corpus: Dict[str, str]):
+        self.corpus = corpus
+        # Precompute lemma index for root search
+        self.lemma_index: Dict[str, List[Tuple[str, int]]] = {}
+        for text_id, text in corpus.items():
+            tokens = self._tokenize(text)
+            self.lemma_index[text_id] = tokens
+
+    def _tokenize(self, text: str) -> List[Tuple[str, int]]:
+        """Tokenize text into (lemma, start_position) tuples."""
+        tokens = []
+        for match in re.finditer(r'\b\w+\b', text):
+            word = match.group()
+            lemma = lemmatize(word, 'ru')
+            if lemma is None:
+                lemma = word
+            tokens.append((lemma, match.start()))
+        return tokens
+
+    def exact_search(self, query: str) -> Optional[List[SearchResult]]:
+        if not query:
+            return None
+        results = []
+        for text_id, text in self.corpus.items():
+            positions = []
+            start = 0
+            while True:
+                pos = text.find(query, start)
+                if pos == -1:
+                    break
+                positions.append(pos)
+                start = pos + 1
+            if positions:
+                results.append(SearchResult(text_id, positions))
+        return results
+
+    def word_search(self, query: str) -> Optional[List[SearchResult]]:
+        if not query:
+            return None
+        results = []
+        pattern = r'\b' + re.escape(query) + r'\b'
+        for text_id, text in self.corpus.items():
+            positions = [m.start() for m in re.finditer(pattern, text)]
+            if positions:
+                results.append(SearchResult(text_id, positions))
+        return results
+
+    def root_search(self, query: str, lang: str) -> Optional[List[SearchResult]]:
+        if not query:
+            return None
+        if not lang:
+            return None
+        if lang != 'ru':
+            return None
+        query_words = query.split()
+        lemma_query = []
+        for word in query_words:
+            lemma = lemmatize(word, lang)
+            if lemma is None:
+                lemma = word
+            lemma_query.append(lemma)
+        results = []
+        for text_id, tokens in self.lemma_index.items():
+            # Find continuous subsequence of lemma_query in tokens
+            for i in range(len(tokens) - len(lemma_query) + 1):
+                match = True
+                for j, lemma in enumerate(lemma_query):
+                    if tokens[i + j][0] != lemma:
+                        match = False
+                        break
+                if match:
+                    results.append(SearchResult(text_id, [tokens[i][1]]))
+                    break  # Only first match per text
+        return results
+```
+
+```file:test_api.py
+from fastapi.testclient import TestClient
+from api import app
+
+client = TestClient(app)
+
+
+def test_exact_search_ok() -> None:
+    response = client.get("/search/exact", params={"query": "мир"})
+    assert response.status_code == 200
+    data = response.json()
+    assert isinstance(data, list)
+    assert len(data) > 0
+
+
+def test_exact_search_empty_query() -> None:
+    response = client.get("/search/exact", params={"query": ""})
+    assert response.status_code == 400
+    assert response.json()["code"] == "EMPTY_QUERY"
+
+
+def test_word_search_ok() -> None:
+    response = client.get("/search/word", params={"query": "мир"})
+    assert response.status_code == 200
+    data = response.json()
+    assert isinstance(data, list)
+    assert len(data) > 0
+
+
+def test_word_search_empty_query() -> None:
+    response = client.get("/search/word", params={"query": ""})
+    assert response.status_code == 400
+    assert response.json()["code"] == "EMPTY_QUERY"
+
+
+def test_root_search_ok() -> None:
+    response = client.get("/search/root", params={"query": "бегу", "lang": "ru"})
+    assert response.status_code == 200
+    data = response.json()
+    assert isinstance(data, list)
+    assert len(data) > 0
+
+
+def test_root_search_empty_query() -> None:
+    response = client.get("/search/root", params={"query": "", "lang": "ru"})
+    assert response.status_code == 400
+    assert response.json()["code"] == "EMPTY_QUERY"
+
+
+def test_root_search_empty_language() -> None:
+    response = client.get("/search/root", params={"query": "test", "lang": ""})
+    assert response.status_code == 400
+    assert response.json()["code"] == "EMPTY_LANGUAGE"
+
+
+def test_root_search_unsupported_language() -> None:
+    response = client.get("/search/root", params={"query": "test", "lang": "en"})
+    assert response.status_code == 400
+    assert response.json()["code"] == "UNSUPPORTED_LANGUAGE"
+
+
+def test_lemmatize_ok() -> None:
+    response = client.get("/lemmatize", params={"word": "бегу", "lang": "ru"})
+    assert response.status_code == 200
+    data = response.json()
+    assert "lemma" in data
+    assert data["lemma"] == "бег"
+
+
+def test_lemmatize_empty_word() -> None:
+    response = client.get("/lemmatize", params={"word": "", "lang": "ru"})
+    assert response.status_code == 400
+    assert response.json()["code"] == "EMPTY_WORD"
+
+
+def test_lemmatize_empty_language() -> None:
+    response = client.get("/lemmatize", params={"word": "test", "lang": ""})
+    assert response.status_code == 400
+    assert response.json()["code"] == "EMPTY_LANGUAGE"
+
+
+def test_lemmatize_unsupported_language() -> None:
+    response = client.get("/lemmatize", params={"word": "test", "lang": "fr"})
+    assert response.status_code == 400
+    assert response.json()["code"] == "UNSUPPORTED_LANGUAGE"
+```
+
+```file:test_lemmatization.py
+from lemmatization import lemmatize
+
+
+def test_lemmatize_known_word() -> None:
+    lemma = lemmatize("бегу", "ru")
+    assert lemma is not None
+    assert lemma == "бег"
+
+
+def test_lemmatize_unknown_word() -> None:
+    lemma = lemmatize("qwerty", "ru")
+    assert lemma is not None
+    assert lemma == "qwerty"
+
+
+def test_lemmatize_empty_word() -> None:
+    lemma = lemmatize("", "ru")
+    assert lemma is None
+
+
+def test_lemmatize_empty_language() -> None:
+    lemma = lemmatize("test", "")
+    assert lemma is None
+
+
+def test_lemmatize_unsupported_language() -> None:
+    lemma = lemmatize("test", "fr")
+    assert lemma is None
+```
+
+```file:test_search.py
+from search import SearchEngine, SearchResult
+
+
+def test_exact_search_found() -> None:
+    corpus = {"1": "мирный мир"}
+    engine = SearchEngine(corpus)
+    results = engine.exact_search("мир")
+    assert results is not None
+    assert len(results) == 1
+    assert results[0].text_id == "1"
+    assert results[0].positions == [0, 7]
+
+
+def test_exact_search_not_found() -> None:
+    corpus = {"1": "hello world"}
+    engine = SearchEngine(corpus)
+    results = engine.exact_search("xyz")
+    assert results is not None
+    assert len(results) == 0
+
+
+def test_exact_search_empty_query() -> None:
+    corpus = {"1": "test"}
+    engine = SearchEngine(corpus)
+    results = engine.exact_search("")
+    assert results is None
+
+
+def test_word_search_found() -> None:
+    corpus = {"1": "мирный мир"}
+    engine = SearchEngine(corpus)
+    results = engine.word_search("мир")
+    assert results is not None
+    assert len(results) == 1
+    assert results[0].text_id == "1"
+    assert results[0].positions == [7]
+
+
+def test_word_search_not_found() -> None:
+    corpus = {"1": "мирный мир"}
+    engine = SearchEngine(corpus)
+    results = engine.word_search("мирный")
+    assert results is not None
+    assert len(results) == 1
+    assert results[0].positions == [0]
+
+
+def test_word_search_empty_query() -> None:
+    corpus = {"1": "test"}
+    engine = SearchEngine(corpus)
+    results = engine.word_search("")
+    assert results is None
+
+
+def test_root_search_found() -> None:
+    corpus = {"2": "бег трусцой"}
+    engine = SearchEngine(corpus)
+    results = engine.root_search("бегу", "ru")
+    assert results is not None
+    assert len(results) == 1
+    assert results[0].text_id == "2"
+    assert results[0].positions == [0]
+
+
+def test_root_search_not_found() -> None:
+    corpus = {"1": "hello world"}
+    engine = SearchEngine(corpus)
+    results = engine.root_search("xyz", "ru")
+    assert results is not None
+    assert len(results) == 0
+
+
+def test_root_search_empty_query() -> None:
+    corpus = {"1": "test"}
+    engine = SearchEngine(corpus)
+    results = engine.root_search("", "ru")
+    assert results is None
+
+
+def test_root_search_empty_language() -> None:
+    corpus = {"1": "test"}
+    engine = SearchEngine(corpus)
+    results = engine.root_search("test", "")
+    assert results is None
+
+
+def test_root_search_unsupported_language() -> None:
+    corpus = {"1": "test"}
+    engine = SearchEngine(corpus)
+    results = engine.root_search("test", "en")
+    assert results is None
+
+
+def test_root_search_unknown_word() -> None:
+    corpus = {"3": "qwerty test"}
+    engine = SearchEngine(corpus)
+    results = engine.root_search("qwerty", "ru")
+    assert results is not None
+    assert len(results) == 1
+    assert results[0].text_id == "3"
+    assert results[0].positions == [0]
+```

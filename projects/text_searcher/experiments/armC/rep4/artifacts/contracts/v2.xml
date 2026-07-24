@@ -1,0 +1,117 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<contracts project="text_search" version="1" derived_from="domains.xml@1">
+
+  <!-- ======================================================================== -->
+  <!-- D-01 Matching                                                          
+  <!-- ======================================================================== -->
+  <contract id="C-corpus-access" domain="D-01" version="1">
+    <!-- WHY: C-corpus-access совпадает с via из ребра D-03→D-01 и одновременно
+         обслуживает прямые вызовы от внешнего клиента (FR-01, FR-02).
+         Альтернатива разделить на два контракта отброшена — это один и тот же
+         контракт поиска по корпусу. -->
+    <provides>
+      <operation id="OP-search" kind="sync">
+        <purpose>Выполнить поиск запроса в корпусе по заданной стратегии.</purpose>
+        <covers>FR-01, FR-02, FR-03</covers>
+        <inputs>
+          <field name="query" type="string" required="true"
+                 constraint="непустая строка"/>
+          <field name="strategy" type="enum{EXACT,WORD}" required="true"/>
+        </inputs>
+        <outputs>
+          <field name="matches" type="list&lt;Match&gt;"/>
+        </outputs>
+        <errors>
+          <error code="EMPTY_QUERY" when="query пуст или состоит только из пробелов"/>
+          <!-- WHY: strategy — enum с двумя допустимыми значениями, поэтому
+               исключаем только недостижимый INVALID_STRATEGY (валидация на вызывающей стороне).
+               Оставляем EMPTY_QUERY как единственный достижимый вариант Result-ошибки. -->
+        </errors>
+      </operation>
+    </provides>
+
+    <types>
+      <!-- record, описывающий одно вхождение в корпусе -->
+      <record name="Match">
+        <field name="document_id" type="string" constraint="ID документа в корпусе"/>
+        <field name="position" type="int" constraint="позиция первого символа совпадения, 0-based"/>
+        <field name="length" type="int" constraint="длина совпадения в символах"/>
+      </record>
+    </types>
+
+    <consumes/>
+  </contract>
+
+  <!-- ======================================================================== -->
+  <!-- D-02 Lemmatization                                                      
+  <!-- ======================================================================== -->
+  <contract id="C-stem-lookup" domain="D-02" version="1">
+    <provides>
+      <operation id="OP-normalize" kind="sync">
+        <purpose>Привести русскую словоформу к лемме; для не-русского текста вернуть исходную строку.</purpose>
+        <covers>NFR-05</covers>
+        <inputs>
+          <field name="wordform" type="string" required="true"
+                 constraint="непустая строка без пробелов; ожидается одно слово"/>
+        </inputs>
+        <outputs>
+          <field name="lemma" type="string" constraint="лемма или исходная словоформа для не-русского текста"/>
+        </outputs>
+        <errors>
+          <error code="EMPTY_WORDFORM" when="wordform пуст или содержит пробелы"/>
+          <!-- WHY: В отличие от Matching, здесь валидируем наличие пробелов,
+               так как лемматизатор оперирует одним словом.
+               Для не-русского текста ошибка НЕ возвращается: контракт гарантирует
+               возврат исходной строки, что является нормальным путём, а не ошибкой. -->
+        </errors>
+      </operation>
+    </provides>
+
+    <types/>
+
+    <!-- WHY: Lemmatization — листовой домен, никакие рёбра в него не входят. -->
+    <consumes/>
+  </contract>
+
+  <!-- ======================================================================== -->
+  <!-- D-03 StemSearch                                                         
+  <!-- ======================================================================== -->
+  <contract id="C-root-search" domain="D-03" version="1">
+    <!-- WHY: Для внешнего клиента создан отдельный контракт C-root-search,
+         а не переиспользован C-corpus-access, чтобы изолировать стратегическую
+         композицию внутри D-03, не раскрывая детали корневого поиска клиенту Matching-а.
+         Альтернатива — открыть клиенту C-corpus-access с strategy=LEMMA — нарушала
+         инкапсуляцию и требовала от клиента знания о D-02. -->
+    <provides>
+      <operation id="OP-root-search" kind="sync">
+        <purpose>Выполнить поиск по корню: нормализовать запрос и найти все совпадения лемм в корпусе.</purpose>
+        <covers>FR-03</covers>
+        <inputs>
+          <field name="query" type="string" required="true"
+                 constraint="непустая строка (допустимы пробелы и многословные запросы)"/>
+        </inputs>
+        <outputs>
+          <field name="matches" type="list&lt;Match&gt;"/>
+        </outputs>
+        <errors>
+          <error code="EMPTY_QUERY" when="query пуст или только пробелы"/>
+          <!-- WHY: EMPTY_QUERY дублируется отсюда из D-01, но на уровне D-03 это
+               самостоятельная валидация до отправки запроса вниз по цепочке.
+               Альтернатива полагаться на EMPTY_QUERY от Matching отвергнута:
+               StemSearch должен принимать решение раньше, не создавая лишней
+               нагрузки на канал D-03→D-01. -->
+        </errors>
+      </operation>
+    </provides>
+
+    <types/>
+    <!-- WHY: Не дублируем record Match — он определён в D-01; в OUTPUTS декларируем
+         как ссылку на семантически эквивалентный тип, который будет уточнён на стадии
+         проекции (OpenAPI) -->
+    <consumes>
+      <contract id="C-stem-lookup" required="true"/>
+      <contract id="C-corpus-access" required="true"/>
+    </consumes>
+  </contract>
+
+</contracts>

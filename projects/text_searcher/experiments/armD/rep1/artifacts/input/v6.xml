@@ -1,0 +1,56 @@
+<requirements module="text_search" version="1">
+  <scope>
+    <responsibility>Поиск вхождений запроса в корпус текстов</responsibility>
+    <in_scope>точный / по слову / по корню</in_scope>
+    <out_of_scope>ранжирование, индексация, сеть</out_of_scope>   <!-- границы = single responsibility -->
+  </scope>
+
+  <functional>
+    <fr id="FR-01" priority="must">Точный поиск подстроки в строке
+      <example query="кот" matches="кот, котлета, коту"/>
+    </fr>
+    <fr id="FR-02" priority="must">Поиск по полному слову (границы слова)
+      <example query="кот" matches="кот" not_matches="котлета, коту"/>
+    </fr>
+    <fr id="FR-03" priority="should">Поиск по корню (лемматизация)
+      <example query="кот" matches="кот, коту, котом" not_matches="котлета"/>
+    </fr>
+  </functional>
+
+  <nonfunctional>
+    <nfr id="NFR-01" type="reliability" subtype="determinism" priority="must">
+      <statement>Детерминизм: без сети/LLM, воспроизводимо</statement>
+      <verify>повторные прогоны на одинаковых (запрос, корпус) дают идентичный результат</verify>
+    </nfr>
+
+    <nfr id="NFR-02" type="portability" subtype="offline" priority="must">
+      <statement>Офлайн: без использования remote сервисов</statement>
+      <verify>полный прогон при отключённом сетевом доступе проходит</verify>
+    </nfr>
+
+    <nfr id="NFR-03" type="performance" subtype="memory" priority="should">
+      <statement>Потребление памяти не зависит от числа выполненных запросов</statement>
+      <metric>прирост RSS после серии запросов относительно baseline</metric>
+      <target>O(1) на запрос; общий объём O(размер корпуса)</target>
+      <condition>корпус фиксирован и предзагружен</condition>
+      <verify>10⁴ запросов /verify>
+    </nfr>
+
+    <nfr id="NFR-04" type="performance" subtype="latency" priority="must">
+      <statement>Время одноу корпусу — единицымиллисекунд</statement>
+      <metric>p95 латентнос загрузки корпуса)</metric>
+      <target>p95 &lt; 5 мс при корпусе ≤ 1 МБ текста</target>
+      <condition>корпус пре закэшированы;референс-железо: &lt;указать&gt;</condition>
+      <verify>бенч на goldeify>
+    </nfr>
+
+    <nfr id="NFR-05" type="portability" subtype="i18n" priority="must">
+      <statement>Основной яорфологии (лемматизациясловоформ к нормальной форме)</statement>
+      <target>RU: все три рню).
+              Латиница/прочее: точный и по слову работают; по корню — falточное слово
+              без ошибки (морфология не применяется)</target>                  <example lang="ru" quежал"/>
+      <example lang="en" query="run" matches="run" not_matches="running" note="лемматизация не приме
+      <verify>кейсы на RU- и EN-корпусах, включая смешанный текст</verify>
+    </nfr>
+  </nonfunctional>
+</requirements>

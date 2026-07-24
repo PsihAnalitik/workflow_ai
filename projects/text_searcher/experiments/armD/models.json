@@ -1,0 +1,17 @@
+{
+  "_comment": "Плечо D: слабый рабочий (flash) + консультант тем же flash — изолирует эффект сброса контекста от силы модели",
+  "profiles": {
+    "default": {
+      "provider": "openai",
+      "model": "deepseek-v4-flash",
+      "temperature": 0.0,
+      "max_tokens": 16384
+    },
+    "consultant": {
+      "provider": "openai",
+      "model": "deepseek-v4-flash",
+      "temperature": 0.0,
+      "max_tokens": 32000
+    }
+  }
+}

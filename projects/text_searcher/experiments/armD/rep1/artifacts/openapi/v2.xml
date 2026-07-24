@@ -1,0 +1,138 @@
+openapi: 3.1.0
+# WHY: проекция контрактов text_search на REST/JSON.
+#      derived_from указывает на исходный contracts.xml@1.
+#      В случае перехода на другой протокол (gRPC/GraphQL) заменится только этот файл.
+info:
+  title: text_search REST API
+  version: "1"
+  x-derived-from: contracts.xml@1
+
+paths:
+  /search:
+    get:
+      # WHY GET: операция поиска — чистое чтение, идемпотентна,
+      #      кэшируема; не создаёт побочных эффектов.
+      #      Альтернатива (POST с телом) избыточна для запроса без тела.
+      operationId: OP-search                # трассировка: contracts.xml → OP-search
+      parameters:
+        - name: query
+          in: query
+          required: true
+          schema:
+            type: string
+            minLength: 1                   # проекция constraint «непустая строка»
+        - name: strategy
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [EXACT, WORD]            # WHY: enum из контракта C-corpus-access;
+                                           #      расширение до LEMMA делается через другой endpoint
+      responses:
+        '200':
+          description: Список совпадений
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Match'
+        '400':
+          description: Ошибка валидации запроса
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          # WHY 400: EMPTY_QUERY — ошибка входа (вина клиента) → 4xx.
+          #          Код из contracts.xml проецируется в поле code тела ответа.
+
+  /normalize:
+    get:
+      # WHY GET: нормализация одного слова — идемпотентный справочный вызов.
+      operationId: OP-normalize            # contracts.xml → OP-normalize
+      parameters:
+        - name: wordform
+          in: query
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            pattern: '^\S+$'              # проекция constraint «без пробелов»
+      responses:
+        '200':
+          description: Лемма (или исходная словоформа для не-русского текста)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [lemma]
+                properties:
+                  lemma:
+                    type: string
+        '400':
+          description: Ошибка валидации входного слова
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          # WHY 400: EMPTY_WORDFORM — ошибка входа → 4xx.
+
+  /root-search:
+    get:
+      # WHY GET: корневой поиск — композиция чтений, без побочных эффектов.
+      #      Альтернатива (POST) не даёт преимуществ при отсутствии тела.
+      operationId: OP-root-search         # contracts.xml → OP-root-search
+      parameters:
+        - name: query
+          in: query
+          required: true
+          schema:
+            type: string
+            minLength: 1
+      responses:
+        '200':
+          description: Список совпадений (лемматизированный поиск)
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Match'
+        '400':
+          description: Ошибка валидации запроса
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          # WHY 400: EMPTY_QUERY (локальная валидация D-03) → 4xx.
+
+components:
+  schemas:
+    Match:
+      # WHY: record Match из D-01 (C-corpus-access). Свойства обязательны,
+      #      так как контракт не предусматривает optional полей.
+      type: object
+      required: [document_id, position, length]
+      properties:
+        document_id:
+          type: string
+          minLength: 1
+        position:
+          type: integer
+          minimum: 0                # проекция «0-based» constraint
+        length:
+          type: integer
+          minimum: 0
+
+    Error:
+      # WHY: единая схема ошибок с кодом и сообщением.
+      #      code перечисляет все возможные коды из contracts.xml,
+      #      чтобы клиент мог ветвиться по одному enum, не парся текст.
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+          enum: [EMPTY_QUERY, EMPTY_WORDFORM]
+        message:
+          type: string

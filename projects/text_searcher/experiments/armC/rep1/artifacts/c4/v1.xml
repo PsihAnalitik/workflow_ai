@@ -1,0 +1,135 @@
+<developmentplan project="text_search" version="1"
+                 derived_from="contracts.xml@1, openapi.yaml@1">
+  <technology>
+    <language>Python 3.14</language>
+    <allowed_libraries>stdlib, fastapi, pymorphy3, httpx (только тесты)</allowed_libraries>
+    <!-- WHY: pymorphy3 — лёгкая, оффлайн, детерминированная библиотека
+         для русской лемматизации, требуемой NFR-05 и контрактом C-stem-lookup;
+         альтернативы (nltk, стеммеры) не подходят для полноценной морфологии. -->
+    <storage>in-memory</storage>
+    <!-- WHY: данные корпуса хранятся в оперативной памяти (словарь),
+         чтобы обеспечить оффлайновый детерминированный поиск без внешних зависимостей;
+         загрузка из статического файла при старте. -->
+  </technology>
+
+  <modules>
+    <module id="MOD-01" implements="OP-search" file="matching.py">
+      <responsibility>Поиск по корпусу: точное (EXACT) или пословное (WORD) сопоставление.</responsibility>
+      <io>
+        <inputs>query: str (непустая), strategy: enum{EXACT, WORD}</inputs>
+        <outputs>matches: list&lt;Match&gt;</outputs>
+        <errors>
+          <error code="EMPTY_QUERY" when="query пуст или состоит только из пробелов">
+            <!-- WHY: EMPTY_QUERY возвращается явно как вариант ответа, а не исключением —
+                 соответствует модели «ошибки как варианты результата» из контракта. -->
+          </error>
+        </errors>
+      </io>
+      <algorithm>
+        1. Если query.strip() == "" → вернуть error "EMPTY_QUERY".
+        2. Если strategy == "EXACT":
+           2.1. Для каждого (doc_id, text) в corpus: найти все позиции подстроки query.
+           2.2. Сформировать list[Match] с document_id, position, length.
+        3. Если strategy == "WORD":
+           3.1. Разбить text каждого документа на слова по пробелам/пунктуации.
+           3.2. Для каждого слова проверить строгое равенство с query; совпадение → Match.
+        4. Вернуть список Match (может быть пустым).
+      </algorithm>
+      <tests>
+        happy: валидный запрос EXACT → совпадение есть; WORD → совпадение есть.
+        edge: пустой запрос → EMPTY_QUERY.
+        edge: запрос, отсутствующий в корпусе → пустой список.
+      </tests>
+    </module>
+
+    <module id="MOD-02" implements="OP-normalize" file="lemmatizer.py">
+      <responsibility>Лемматизация русских словоформ через pymorphy3.</responsibility>
+      <io>
+        <inputs>wordform: str (непустая, без пробелов)</inputs>
+        <outputs>lemma: str (лемма или исходное слово для не-русского текста)</outputs>
+        <errors>
+          <error code="EMPTY_WORDFORM" when="wordform пуст или содержит пробелы"/>
+        </errors>
+      </io>
+      <algorithm>
+        1. Если wordform пуст или содержит пробел → error "EMPTY_WORDFORM".
+        2. Передать wordform в pymorphy3.MorphAnalyzer.parse().
+        3. Если результат парсинга непуст, взять normal_form первого варианта.
+        4. Иначе (не-русский текст) вернуть исходную строку wordform.
+        5. Вернуть лемму.
+      </algorithm>
+      <tests>
+        happy: слово "кошка" → "кошка"; слово "мышку" → "мышка".
+        edge: не-русское "hello" → "hello".
+        error: пустая строка → EMPTY_WORDFORM; строка с пробелами → EMPTY_WORDFORM.
+      </tests>
+    </module>
+
+    <module id="MOD-03" implements="OP-root-search" file="root_search.py">
+      <responsibility>Корневой поиск: композиция лемматизации и поиска по леммам в корпусе.</responsibility>
+      <io>
+        <inputs>query: str (непустая)</inputs>
+        <outputs>matches: list&lt;Match&gt;</outputs>
+        <errors>
+          <error code="EMPTY_QUERY" when="query пуст или из пробелов"/>
+        </errors>
+        <consumes>
+          <!-- WHY: зависимости на другие модули зафиксированы, чтобы кодогенератор
+               знал, какие функции импортировать; это проекция ребра D-03→D-02 и D-03→D-01. -->
+          <module ref="MOD-02" purpose="лемматизация каждого слова"/>
+          <module ref="MOD-01" purpose="EXACT-поиск по лемме"/>
+        </consumes>
+      </io>
+      <algorithm>
+        1. Если query.strip() == "" → error "EMPTY_QUERY".
+        2. Разбить query на слова (split).
+        3. Для каждого слова вызвать MOD-02.normalize(word) → лемма.
+        4. Для каждой леммы вызвать MOD-01.search(lemma, strategy="EXACT").
+        5. Объединить все Match из всех лемм, удалив дубликаты по (document_id, position, length).
+        6. Вернуть итоговый список.
+      </algorithm>
+      <tests>
+        happy: многословный запрос "кошку мышку" → находит все документы с леммами "кошка" и "мышка".
+        edge: пустой запрос → EMPTY_QUERY.
+        edge: запрос, после лемматизации не дающий совпадений → пустой список.
+      </tests>
+    </module>
+
+    <module id="MOD-04" implements="rest" file="api.py">
+      <responsibility>FastAPI-биндинг: обработка HTTP-запросов, вызов ядра, сериализация ответов/ошибок.</responsibility>
+      <io>
+        <inputs>HTTP-запросы по контракту openapi.yaml</inputs>
+        <outputs>JSON-тела, соответствующие схемам Match и Error</outputs>
+        <errors>400 Bad Request с телом {code, message} при ошибках входа</errors>
+      </io>
+      <algorithm>
+        ПО КАЖДОМУ endpoint:
+        1. Принять параметры, проверить обязательность (FastAPI делает это автоматически).
+        2. Вызвать соответствующий модуль ядра (MOD-01, MOD-02, MOD-03).
+        3. Если модуль вернул ошибку → вернуть JSONResponse(status_code=400, content={"code": ..., "message": ...}).
+        4. Иначе вернуть JSONResponse(status_code=200, content=result).
+      </algorithm>
+      <tests>
+        in-process TestClient:
+          - GET /search?query=test&strategy=EXACT → 200, список Match.
+          - GET /search?query=&strategy=WORD → 400, code=EMPTY_QUERY.
+          - GET /normalize?wordform=кошку → 200, {"lemma":"кошка"}.
+          - GET /normalize?wordform= → 400, code=EMPTY_WORDFORM.
+          - GET /root-search?query=кошка → 200, список Match.
+          - GET /root-search?query= → 400, code=EMPTY_QUERY.
+      </tests>
+    </module>
+  </modules>
+
+  <rest_binding>
+    <!-- Каждый endpoint из openapi.yaml снабжён operationId и указанием модульной цепочки -->
+    <endpoint path="/search" method="get" operationId="OP-search" module="MOD-04 → MOD-01"/>
+    <endpoint path="/normalize" method="get" operationId="OP-normalize" module="MOD-04 → MOD-02"/>
+    <endpoint path="/root-search" method="get" operationId="OP-root-search" module="MOD-04 → MOD-03"/>
+  </rest_binding>
+
+  <run>
+    <serve>uvicorn api:app</serve>
+    <test>python -m pytest -q</test>
+  </run>
+</developmentplan>

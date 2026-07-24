@@ -1,0 +1,188 @@
+<developmentplan project="text_search" version="1"
+                 derived_from="contracts.xml@1, openapi.yaml@1">
+  <technology>
+    <language>Python 3.14</language>
+    <allowed_libraries>stdlib, fastapi, pymorphy3 (морфология RU), httpx (только тесты)</allowed_libraries>
+    <!-- WHY: in-memory — NFR офлайн/детерминизм и отсутствие сети; данные статичны -->
+    <storage>in-memory</storage>
+  </technology>
+
+  <modules>
+    <!-- ====================================================================== -->
+    <!-- Поисковый модуль (C-search)                                             -->
+    <!-- ====================================================================== -->
+    <module id="MOD-search" implements="OP-exact-search, OP-word-search, OP-root-search"
+            file="search.py">
+      <responsibility>
+        Поиск вхождений (точная подстрока, целое слово, по корню) в статическом
+        in-memory корпусе текстов.
+      </responsibility>
+      <!-- WHY: один модуль на три операции. Альтернатива — три модуля с копией
+           логики обхода корпуса — создала бы дублирование без пользы, так как
+           все три операции разделяют состояние (корпус) и схему выдачи -->
+      <io>
+        <inputs>
+          <!-- Для exact/word -->
+          <input name="query" type="string" constraint="непустой"/>
+          <!-- Дополнительно для root -->
+          <input name="lang" type="string" constraint="непустой, идентификатор языка"/>
+        </inputs>
+        <outputs>list&lt;SearchResult&gt;</outputs>
+        <errors>
+          <error code="EMPTY_QUERY"/>
+          <error code="EMPTY_LANGUAGE"/>
+          <error code="UNSUPPORTED_LANGUAGE"/>
+        </errors>
+      </io>
+      <algorithm>
+        <init>
+          Загружает статический корпус в self.corpus: Dict[str, str] (id → текст).
+          Для root-поиска предвычисляет индекс лемм: для каждого текста строит список
+          токенов (слов) с позициями и их леммами.
+        </init>
+        <op id="OP-exact-search">
+          1. Если query пустой → вернуть EMPTY_QUERY.
+          2. results = [].
+          3. Для каждого (text_id, text) из corpus:
+               найти все позиции query как подстроки (str.find в цикле со сдвигом).
+               Если позиции есть → добавить SearchResult(text_id, positions).
+          4. Вернуть results.
+        </op>
+        <op id="OP-word-search">
+          1. Если query пустой → вернуть EMPTY_QUERY.
+          2. results = [].
+          3. Для каждого (text_id, text) из corpus:
+               используя regex r'\b' + re.escape(query) + r'\b', найти все начальные
+               индексы совпадений (re.finditer). Если есть → добавить SearchResult.
+          4. Вернуть results.
+        </op>
+        <op id="OP-root-search">
+          1. Если query пустой → EMPTY_QUERY; если lang пустой → EMPTY_LANGUAGE.
+          2. Если lang не равен 'ru' → UNSUPPORTED_LANGUAGE
+             <!-- WHY: pymorphy3 поддерживает только русский; альтернативные библиотеки
+                  (spacy, stanza) добавили бы сетевую зависимость и вес, запрещённые NFR -->
+          3. Разбить query на слова (split).
+          4. Для каждого слова вызвать модуль MOD-lemmatize (lemmatization.py) с lang='ru'.
+             Получить список lemma_query.
+          5. results = [].
+          6. Для каждого (text_id, text) из corpus:
+               используя предвычисленный индекс лемм (список (lemma, start_pos)):
+               найти подпоследовательность lemma_query как непрерывный блок.
+               Если найдено → добавить SearchResult с позицией первого токена.
+          7. Вернуть results.
+        </op>
+      </algorithm>
+      <tests>
+        <happy>
+          - exact: query "мир" в корпусе с "мирный мир" → два результата с позициями.
+          - word: query "мир" → только целые слова "мир", не "мирный".
+          - root: query "бегу" с lang="ru" → текст "бег трусцой" даёт совпадение.
+        </happy>
+        <edge>
+          - exact/word/root: query, которого нет в корпусе → пустой список.
+          - root: слово не в словаре pymorphy3 (например, "qwerty") → лемма = слово,
+            ищется как есть.
+        </edge>
+        <errors>
+          - EMPTY_QUERY: query="" для любой поисковой операции → 400.
+          - EMPTY_LANGUAGE: при root, lang="" → 400.
+          - UNSUPPORTED_LANGUAGE: lang="en" при root → 400.
+        </errors>
+      </tests>
+    </module>
+
+    <!-- ====================================================================== -->
+    <!-- Модуль лемматизации (C-lemmatize)                                        -->
+    <!-- ====================================================================== -->
+    <module id="MOD-lemmatize" implements="OP-lemmatize"
+            file="lemmatization.py">
+      <responsibility>
+        Приведение словоформы к лемме (нормальной форме) для заданного языка.
+      </responsibility>
+      <io>
+        <inputs>
+          <input name="word" type="string" constraint="непустая словоформа"/>
+          <input name="lang" type="string" constraint="идентификатор языка"/>
+        </inputs>
+        <outputs>lemma: string (нормальная форма)</outputs>
+        <errors>
+          <error code="EMPTY_WORD"/>
+          <error code="EMPTY_LANGUAGE"/>
+          <error code="UNSUPPORTED_LANGUAGE"/>
+        </errors>
+      </io>
+      <algorithm>
+        1. Если word пустой → вернуть EMPTY_WORD.
+        2. Если lang пустой → EMPTY_LANGUAGE.
+        3. Если lang не равен 'ru' → UNSUPPORTED_LANGUAGE.
+        4. Используя pymorphy3.MorphAnalyzer():
+             разобрать word (parse(word)).
+             Если список разборов непуст → взять нормальную форму первого разбора.
+             Иначе → вернуть word неизменным.
+           Вернуть LemmaResult(lemma).
+      </algorithm>
+      <tests>
+        <happy>
+          - word="бегу", lang="ru" → лемма (например, "бежать").
+        </happy>
+        <edge>
+          - Неизвестное слово (вне словаря) → lemma == word.
+        </edge>
+        <errors>
+          - EMPTY_WORD: word="" → 400.
+          - EMPTY_LANGUAGE: lang="" → 400.
+          - UNSUPPORTED_LANGUAGE: lang="fr" → 400.
+        </errors>
+      </tests>
+    </module>
+
+    <!-- ====================================================================== -->
+    <!-- REST-биндинг (FastAPI)                                                   -->
+    <!-- ====================================================================== -->
+    <module id="MOD-api" implements="rest" file="api.py">
+      <responsibility>
+        FastAPI-приложение, связывающее HTTP-запросы согласно openapi.yaml с модулями
+        MOD-search и MOD-lemmatize.
+      </responsibility>
+      <io>
+        <inputs>HTTP-запросы</inputs>
+        <outputs>JSON по схемам openapi</outputs>
+        <errors>Ошибки контрактов отображаются в JSON {code, message} со статусом 400</errors>
+      </io>
+      <algorithm>
+        Создать FastAPI app.
+        Инициализировать экземпляр MOD-search с предопределённым корпусом
+        и экземпляр MOD-lemmatize.
+        Endpoints:
+        - GET /search/exact → вызывает search.OP-exact-search(query), маппит результат в JSON.
+        - GET /search/word → аналогично.
+        - GET /search/root → search.OP-root-search(query, lang).
+        - GET /lemmatize → lemmatize.OP-lemmatize(word, lang).
+        Все ошибки модулей ядра преобразуются в HTTP 400 с телом Error(code, message).
+      </algorithm>
+      <tests>
+        <happy>TestClient in-process: каждый endpoint с валидными данными → 200,
+               body соответствует схемам.</happy>
+        <errors>Каждая ошибка контракта (EMPTY_QUERY и др.) → 400, body.code = код ошибки,
+                body.message непусто.</errors>
+      </tests>
+    </module>
+  </modules>
+
+  <rest_binding>
+    <!-- WHY: каждый operationId из openapi привязан к соответствующему модулю через api-слой -->
+    <endpoint path="/search/exact" method="get" operationId="OP-exact-search"
+              module="MOD-api → MOD-search"/>
+    <endpoint path="/search/word" method="get" operationId="OP-word-search"
+              module="MOD-api → MOD-search"/>
+    <endpoint path="/search/root" method="get" operationId="OP-root-search"
+              module="MOD-api → MOD-search"/>
+    <endpoint path="/lemmatize" method="get" operationId="OP-lemmatize"
+              module="MOD-api → MOD-lemmatize"/>
+  </rest_binding>
+
+  <run>
+    <serve>uvicorn api:app --host 0.0.0.0 --port 8000</serve>
+    <test>python -m pytest -q</test>
+  </run>
+</developmentplan>

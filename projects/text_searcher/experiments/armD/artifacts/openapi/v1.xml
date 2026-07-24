@@ -1,0 +1,146 @@
+openapi: 3.1.0
+info:
+  title: Text Search Service REST API
+  version: "1"
+  x-derived-from: contracts.xml@v1
+paths:
+  /search/exact:
+    post:
+      # WHY: POST, а не GET — запрос содержит тело (query), которое может быть произвольной длины;
+      # использование GET с query-параметром усложнило бы кодирование длинных строк.
+      operationId: OP-exact-search
+      summary: Поиск вхождений подстроки (точное совпадение без учёта границ слова)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SearchRequest'
+      responses:
+        '200':
+          description: Успешный поиск
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MatchesResponse'
+        '400':
+          # WHY: 400, а не 422 — EMPTY_QUERY относится к синтаксической корректности запроса
+          # (тело есть, но поле не соответствует constraint), 400 семантически шире и привычнее.
+          description: Пустой запрос (EMPTY_QUERY)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '503':
+          # WHY: 503, а не 500 — CORPUS_NOT_READY указывает на временную неготовность сервиса,
+          # что укладывается в семантику «Service Unavailable», позволяя клиенту повторить запрос позже.
+          description: Корпус не загружен (CORPUS_NOT_READY)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /search/word:
+    post:
+      operationId: OP-word-search
+      summary: Поиск вхождений целого слова (с учётом границ слова)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SearchRequest'
+      responses:
+        '200':
+          description: Успешный поиск
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MatchesResponse'
+        '400':
+          description: Пустой запрос (EMPTY_QUERY)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '503':
+          description: Корпус не загружен (CORPUS_NOT_READY)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /search/stem:
+    post:
+      operationId: OP-stem-search
+      summary: Поиск вхождений по корню слова (морфологическая нормализация для русского, исходная форма для остальных)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SearchRequest'
+      responses:
+        '200':
+          description: Успешный поиск
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MatchesResponse'
+        '400':
+          description: Пустой запрос (EMPTY_QUERY)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '503':
+          description: Корпус не загружен (CORPUS_NOT_READY)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+components:
+  schemas:
+    SearchRequest:
+      type: object
+      required: [query]
+      properties:
+        query:
+          type: string
+          minLength: 1
+          # WHY: minLength:1 — проекция constraint "непустой" из contracts.xml.
+    MatchesResponse:
+      type: object
+      required: [matches]
+      properties:
+        matches:
+          type: array
+          items:
+            $ref: '#/components/schemas/Match'
+    Match:
+      type: object
+      required: [text_id, start_pos, end_pos]
+      properties:
+        text_id:
+          type: string
+          description: идентификатор текста в корпусе
+        start_pos:
+          type: integer
+          minimum: 0
+        end_pos:
+          type: integer
+          minimum: 0
+          # WHY: ограничение end_pos > start_pos невыразимо в JSON Schema;
+          # валидация будет выполнена на уровне бизнес-логики.
+    Error:
+      # WHY: единая структура {code, message} — code зеркалит коды ошибок контракта
+      # (машиночитаемо), message — человекочитаемое описание; потребитель ветвится по code.
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+          enum: [EMPTY_QUERY, CORPUS_NOT_READY]
+        message:
+          type: string

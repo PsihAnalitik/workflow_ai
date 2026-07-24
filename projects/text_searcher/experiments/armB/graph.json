@@ -1,0 +1,28 @@
+{
+  "_comment": "Плечо B: копия graph.autopilot.json цеха microservice, но llm_profiles_path указывает на flash-профиль плеча. Запуск с --resume и стором experiments/armB/artifacts — живьём выполняется только executor.",
+  "project": "text_searcher",
+  "llm_profiles_path": "projects/text_searcher/experiments/armB/models.json",
+  "nodes": [
+    {"id": "domains", "config_path": "configs/microservice/nodes/domains.json"},
+    {"id": "contracts", "config_path": "configs/microservice/nodes/contracts.json"},
+    {"id": "openapi", "config_path": "configs/microservice/nodes/openapi.json"},
+    {"id": "tech_selection", "config_path": "configs/microservice/nodes/tech_selection.json"},
+    {"id": "c4", "config_path": "configs/microservice/nodes/c4.json"},
+    {
+      "id": "executor",
+      "config_path": "configs/microservice/nodes/executor.json",
+      "kind": "codegen",
+      "image": "workshop-microservice:latest"
+    }
+  ],
+  "edges": [
+    {"from": "domains", "to": "contracts"},
+    {"from": "contracts", "to": "openapi"},
+    {"from": "contracts", "to": "tech_selection"},
+    {"from": "openapi", "to": "tech_selection"},
+    {"from": "contracts", "to": "c4"},
+    {"from": "openapi", "to": "c4"},
+    {"from": "tech_selection", "to": "c4"},
+    {"from": "c4", "to": "executor"}
+  ]
+}

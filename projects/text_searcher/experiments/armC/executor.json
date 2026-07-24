@@ -1,0 +1,8 @@
+{
+  "base_prompt_path": "configs/microservice/prompts/codegen.base.md",
+  "stage_map_path": "configs/microservice/prompts/empty.stage.md",
+  "wiki_refs_from": "tech_selection",
+  "llm_profile": "default",
+  "consultant_profile": "consultant",
+  "sandbox_notes": "Образ python:3.14-slim с предустановленными пакетами: pytest, fastapi, httpx, pymorphy3, pymorphy3-dicts-ru, uvicorn. Других пакетов нет, установка невозможна."
+}

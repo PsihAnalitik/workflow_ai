@@ -1,0 +1,11 @@
+{
+  "_comment": "Плечо B эксперимента LLM-консультанта: слабая модель везде, без консультанта",
+  "profiles": {
+    "default": {
+      "provider": "openai",
+      "model": "deepseek-v4-flash",
+      "temperature": 0.0,
+      "max_tokens": 16384
+    }
+  }
+}

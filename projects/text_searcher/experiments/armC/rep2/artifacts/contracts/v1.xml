@@ -1,0 +1,73 @@
+<contracts derived_from="domains.xml@1">
+  <contract id="C-text-search" domain="D-01">
+    <provides>
+      <!--
+        WHY: три операции вместо одной с параметром mode.
+        Альтернатива — одна операция с enum-параметром — отвергнута, потому что
+        режимы поиска имеют разную семантику результата (подстрока, граница слова, 
+        морфология) и покрывают разные требования; явное разделение позволяет 
+        независимо изменять контракт каждого режима (добавить свои входные параметры, 
+        уточнить выходы), не ломая обратную совместимость остальных.
+      -->
+      <operation id="OP-exact-search" kind="sync">
+        <purpose>Поиск вхождений подстроки (точное совпадение без учёта границ слова) по всем текстам корпуса</purpose>
+        <covers>FR-01</covers>
+        <inputs>
+          <field name="query" type="string" required="true" constraint="непустой"/>
+        </inputs>
+        <outputs>
+          <field name="matches" type="list<Match>"/>
+        </outputs>
+        <errors>
+          <!--
+            WHY: пустой запрос — ошибка валидации, а не пустой список совпадений.
+            Альтернатива — возвращать [] — не позволяет вызывающему отличить 
+            «забыл передать запрос» от «честного отсутствия вхождений».
+          -->
+          <error code="EMPTY_QUERY" when="поле query пустое"/>
+          <error code="CORPUS_NOT_READY" when="корпус не загружен (предусловие нарушено)"/>
+        </errors>
+      </operation>
+
+      <operation id="OP-word-search" kind="sync">
+        <purpose>Поиск вхождений целого слова (совпадение с учётом границ слова) по всем текстам корпуса</purpose>
+        <covers>FR-02</covers>
+        <inputs>
+          <field name="query" type="string" required="true" constraint="непустой, одно или несколько слов"/>
+        </inputs>
+        <outputs>
+          <field name="matches" type="list<Match>"/>
+        </outputs>
+        <errors>
+          <error code="EMPTY_QUERY" when="поле query пустое"/>
+          <error code="CORPUS_NOT_READY" when="корпус не загружен (предусловие нарушено)"/>
+        </errors>
+      </operation>
+
+      <operation id="OP-stem-search" kind="sync">
+        <purpose>Поиск вхождений по корню слова: для русских слов — с морфологической нормализацией, для остальных — по исходной форме (без ошибки)</purpose>
+        <covers>FR-03</covers>
+        <inputs>
+          <field name="query" type="string" required="true" constraint="непустой, одно или несколько слов"/>
+        </inputs>
+        <outputs>
+          <field name="matches" type="list<Match>"/>
+        </outputs>
+        <errors>
+          <error code="EMPTY_QUERY" when="поле query пустое"/>
+          <error code="CORPUS_NOT_READY" when="корпус не загружен (предусловие нарушено)"/>
+        </errors>
+      </operation>
+    </provides>
+
+    <types>
+      <record name="Match">
+        <field name="text_id" type="string" constraint="идентификатор текста в корпусе"/>
+        <field name="start_pos" type="int" constraint=">=0, позиция начала вхождения в тексте"/>
+        <field name="end_pos" type="int" constraint="> start_pos, позиция конца вхождения (исключающая)"/>
+      </record>
+    </types>
+
+    <consumes/>
+  </contract>
+</contracts>

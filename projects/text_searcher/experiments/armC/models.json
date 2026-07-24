@@ -1,0 +1,17 @@
+{
+  "_comment": "Плечо C: слабый рабочий (flash) + сильный консультант (glm-5.2) при тупике",
+  "profiles": {
+    "default": {
+      "provider": "openai",
+      "model": "deepseek-v4-flash",
+      "temperature": 0.0,
+      "max_tokens": 16384
+    },
+    "consultant": {
+      "provider": "openai",
+      "model": "glm-5.2",
+      "temperature": 0.0,
+      "max_tokens": 32000
+    }
+  }
+}

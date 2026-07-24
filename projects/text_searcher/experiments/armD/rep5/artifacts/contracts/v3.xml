@@ -1,0 +1,134 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<contracts project="text_search" version="1" derived_from="domains.xml@1">
+  <!--
+    WHY: два контракта повторяют два домена. Альтернатива «единый контракт»
+    разрушила бы границу ответственности между поиском и лемматизацией,
+    запрещённую правилом «один домен — один контракт» из grace.md.
+  -->
+
+  <!-- ====================================================================== -->
+  <!-- Домен D-01: search                                                     -->
+  <!-- ====================================================================== -->
+  <contract id="C-search" module="search" version="1" derived_from="domains.xml@1">
+    <provides>
+      <!-- WHY: три операции вместо одной с флагом mode. Альтернатива с флагом
+           нарушает «одна операция — один чёткий контракт»: INPUTS/OUTPUTS
+           зависели бы от значения флага, ERRORS были бы разными для разных
+           режимов, а вызывающий был бы вынужден знать внутреннюю логику. -->
+      <operation id="OP-exact-search" kind="sync">
+        <purpose>Найти точное вхождение запроса как подстроки во всех текстах корпуса</purpose>
+        <covers>FR-01</covers>
+        <inputs>
+          <field name="query" type="string" required="true"
+                 constraint="непустой"/>
+        </inputs>
+        <outputs>
+          <field name="results" type="list&lt;SearchResult&gt;"
+                 constraint="пустой список, если вхождений нет"/>
+        </outputs>
+        <errors>
+          <!-- WHY: ошибка только одна; пустая строка — единственный
+               некорректный вход для поиска подстроки. -->
+          <error code="EMPTY_QUERY" when="query пуст"/>
+        </errors>
+      </operation>
+
+      <operation id="OP-word-search" kind="sync">
+        <purpose>Найти вхождения запроса как целого слова во всех текстах корпуса</purpose>
+        <covers>FR-02</covers>
+        <inputs>
+          <field name="query" type="string" required="true"
+                 constraint="непустой, может быть многословным"/>
+        </inputs>
+        <outputs>
+          <field name="results" type="list&lt;SearchResult&gt;"
+                 constraint="пустой список, если вхождений нет"/>
+        </outputs>
+        <errors>
+          <error code="EMPTY_QUERY" when="query пуст"/>
+        </errors>
+      </operation>
+
+      <operation id="OP-root-search" kind="sync">
+        <purpose>Найти вхождения запроса по корню (с приведением к лемме) во всех текстах корпуса</purpose>
+        <covers>FR-03</covers>
+        <inputs>
+          <field name="query" type="string" required="true"
+                 constraint="непустой"/>
+          <field name="lang" type="string" required="true"
+                 constraint="идентификатор языка из поддерживаемых лемматизатором"/>
+        </inputs>
+        <outputs>
+          <field name="results" type="list&lt;SearchResult&gt;"
+                 constraint="пустой список, если вхождений нет"/>
+        </outputs>
+        <errors>
+          <error code="EMPTY_QUERY" when="query пуст"/>
+          <error code="EMPTY_LANGUAGE" when="lang пуст"/>
+          <error code="UNSUPPORTED_LANGUAGE"
+                 when="lang не поддерживается лемматизатором"/>
+        </errors>
+      </operation>
+    </provides>
+
+    <types>
+      <record name="SearchResult">
+        <!-- WHY: возвращаем идентификатор текста, а не полный текст.
+             Альтернатива «возвращать текст целиком» тяжела по данным и
+             связывает поисковый сервис с хранением текстов. -->
+        <field name="text_id" type="string"
+               constraint="непустой идентификатор текста в корпусе"/>
+        <field name="positions" type="list&lt;int&gt;"
+               constraint="индексы начала вхождений; непуст, если result в выдаче"/>
+      </record>
+    </types>
+
+    <consumes>
+      <!-- Потребляет контракт C-lemmatize для FR-03 -->
+      <contract-ref id="C-lemmatize" via="C-lemmatize"/>
+    </consumes>
+  </contract>
+
+  <!-- ====================================================================== -->
+  <!-- Домен D-02: lemmatization                                               -->
+  <!-- ====================================================================== -->
+  <!-- WHY: контракт выделен в отдельный домен несмотря на то, что
+       FR-03 закрыт D-01. Альтернатива «встроить лемматизацию в search»
+       нарушила бы единственную ответственность и заблокировала независимую
+       эволюцию словарей/правил разных языков. -->
+  <contract id="C-lemmatize" module="lemmatization" version="1" derived_from="domains.xml@1">
+    <provides>
+      <operation id="OP-lemmatize" kind="sync">
+        <purpose>Привести словоформу к нормальной форме (лемме) для указанного языка</purpose>
+        <!-- WHY: covers отсутствует осознанно: D-02 — обеспечивающий домен,
+             он не закрывает FR напрямую; его контракт потребляется D-01.
+             Согласно grace.md, covers обязателен для операций, закрывающих FR,
+             но наличие covers у обеспечивающего контракта создало бы ложную
+             связь FR-03 → D-02 в обход D-01. -->
+        <inputs>
+          <field name="word" type="string" required="true"
+                 constraint="непустая словоформа"/>
+          <field name="lang" type="string" required="true"
+                 constraint="идентификатор языка"/>
+        </inputs>
+        <outputs>
+          <field name="lemma" type="string"
+                 constraint="нормальная форма слова; равно входному слову,
+                             если лемматизация не требуется или слово не найдено"/>
+        </outputs>
+        <errors>
+          <error code="EMPTY_WORD" when="word пуст"/>
+          <error code="EMPTY_LANGUAGE" when="lang пуст"/>
+          <!-- WHY: неизвестное слово — не ошибка, а штатный выход (lemma == word).
+               Альтернатива «выбрасывать ошибку» заставила бы search-домен
+               обрабатывать её для каждого незнакомого слова, что раздуло бы
+               контракт C-search без пользы. -->
+          <error code="UNSUPPORTED_LANGUAGE"
+                 when="язык lang не входит в поддерживаемый лемматизатором набор"/>
+        </errors>
+      </operation>
+    </provides>
+    <types/>
+    <consumes/>
+  </contract>
+</contracts>

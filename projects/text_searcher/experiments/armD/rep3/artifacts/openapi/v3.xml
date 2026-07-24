@@ -1,0 +1,183 @@
+openapi: 3.1.0
+info:
+  title: Text Search Service REST API
+  version: "1"
+# WHY: Версия 1 — стартовая, соответствует версии контрактов, от которых порождён артефакт.
+derived_from: contracts.xml@1
+
+paths:
+
+  # ======================================================================
+  # Домен D-01: search (C-search)
+  # ======================================================================
+  /search/exact:
+    get:
+      # WHY: GET — операция чтения без побочных эффектов (safe, idempotent);
+      #       параметры запроса (query) безопасно передавать в URL.
+      #       Альтернатива POST с телом добавила бы лишнюю сложность без выигрыша.
+      operationId: OP-exact-search   # трассировка к contracts.xml
+      summary: Поиск точного вхождения подстроки
+      parameters:
+        - name: query
+          in: query
+          required: true
+          schema:
+            type: string
+            minLength: 1             # проекция ограничения «непустой»
+      responses:
+        '200':
+          description: Результаты поиска (может быть пустым списком)
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SearchResult'
+        '400':
+          # WHY: 400 — ошибка клиента (EMPTY_QUERY), попадает под 4xx;
+          #       серверный статус 5xx здесь не нужен: все ошибки контракта — входные.
+          description: Некорректный запрос
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /search/word:
+    get:
+      # WHY: GET — аналогично exact-search; многословный запрос не требует метода,
+      #       отличного от точного поиска, так как оба — чистые чтения.
+      operationId: OP-word-search
+      summary: Поиск вхождения как целого слова
+      parameters:
+        - name: query
+          in: query
+          required: true
+          schema:
+            type: string
+            minLength: 1
+      responses:
+        '200':
+          description: Результаты поиска (может быть пустым списком)
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SearchResult'
+        '400':
+          description: Некорректный запрос
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /search/root:
+    get:
+      # WHY: GET — несмотря на дополнительный параметр lang, операция остаётся чистым чтением.
+      #       Язык можно указать в query-параметре, не требуется тело запроса.
+      operationId: OP-root-search
+      summary: Поиск по корню (лемме)
+      parameters:
+        - name: query
+          in: query
+          required: true
+          schema:
+            type: string
+            minLength: 1
+        - name: lang
+          in: query
+          required: true
+          schema:
+            type: string
+            minLength: 1   # проекция «непустой»
+      responses:
+        '200':
+          description: Результаты поиска (может быть пустым списком)
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SearchResult'
+        '400':
+          description: Некорректный запрос
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # ======================================================================
+  # Домен D-02: lemmatization (C-lemmatize)
+  # ======================================================================
+  /lemmatize:
+    get:
+      # WHY: GET — лемматизация является чистой функцией (один и тот же вход всегда
+      #       даёт тот же выход), без побочных эффектов; query-параметры
+      #       word/lang уместны.
+      operationId: OP-lemmatize
+      summary: Приведение словоформы к нормальной форме
+      parameters:
+        - name: word
+          in: query
+          required: true
+          schema:
+            type: string
+            minLength: 1
+        - name: lang
+          in: query
+          required: true
+          schema:
+            type: string
+            minLength: 1
+      responses:
+        '200':
+          description: Лемма
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LemmaResult'
+        '400':
+          description: Некорректный запрос
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+components:
+  schemas:
+    SearchResult:
+      type: object
+      required: [text_id, positions]
+      properties:
+        text_id:
+          type: string
+          minLength: 1           # непустой идентификатор
+          description: Идентификатор текста в корпусе
+        positions:
+          type: array
+          items:
+            type: integer
+          minItems: 1            # WHY: по контракту список позиций непуст для любого выданного результата;
+                                 #       пустой список означал бы отсутствие вхождений, но тогда результата вообще не было бы.
+          description: Индексы начала вхождений (непустой список)
+
+    LemmaResult:
+      type: object
+      required: [lemma]
+      properties:
+        lemma:
+          type: string
+          description: Нормальная форма слова
+
+    Error:
+      # WHY: {code, message} — code машиночитаем (enum кодов контракта),
+      #       message — для человека; потребитель ветвится по code, а не парсит текст.
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+          enum: [EMPTY_QUERY, EMPTY_LANGUAGE, UNSUPPORTED_LANGUAGE, EMPTY_WORD]
+          # Перечислены все коды ошибок из контрактов C-search и C-lemmatize
+        message:
+          type: string
