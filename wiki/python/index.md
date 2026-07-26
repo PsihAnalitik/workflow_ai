@@ -14,6 +14,10 @@
 | [httpx](httpx/index.md) | `python/httpx` | современный HTTP-клиент (sync/async, HTTP/1.1, HTTP/2) | allowed |
 | [django](django/index.md) | `python/django` | веб-приложения на Django Templates + HTMX/Alpine (витрины, серверный рендеринг) | allowed |
 
+Методологические области (не технологии, в tech_selection не участвуют):
+- [errors](errors/index.md) — обработка исключений: формирование (Т1–Т5)
+  и каталог проглатывания (S1–S8) для цехов exception_hardener / exception_roaster.
+
 Статусы: preferred — выбирается по умолчанию для своего класса задач;
 allowed — допустима с WHY-обоснованием; deprecated — не выбирать для нового кода.
 

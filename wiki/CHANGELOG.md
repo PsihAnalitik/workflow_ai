@@ -241,3 +241,18 @@ related-ссылка на методологию). Проверка: wiki-check,
 | `agents/prompts/examples/bad.md` | — | `d12c7ae1f8aba599` |
 | `agents/prompts/examples/good.md` | — | `93b2d0fe8a6e8947` |
 | `agents/prompts/examples/practices.md` | — | `12db0f05d4603b57` |
+
+## 2026-07-26 — область python/errors: обработка исключений (запрос автора)
+
+**Основание: обогащение по статье KDnuggets «Advanced Error Handling in Python»
+и репозиторию balapriyac/python-basics/error-handling. handling.md — техники
+Т1–Т5 формирования обработки; swallowing.md — каталог проглатывания S1–S8
+для цехов exception_hardener / exception_roaster. python/index.md — блок
+методологических областей. Проверка: wiki-check, 45 страниц.**
+
+| Файл | Роль | sha256[:16] |
+|---|---|---|
+| `python/index.md` | — | `4eb306637afdc216` |
+| `python/errors/index.md` | — | `f261e6c81d2fe35a` |
+| `python/errors/handling.md` | — | `c04d9c30126e867d` |
+| `python/errors/swallowing.md` | — | `2eb8bf83e05c0141` |

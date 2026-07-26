@@ -1,0 +1,14 @@
+{
+  "_comment": "Цех прожарки кода на проглатывание исключений (запрос автора 26.07.2026). Элемент map-прогона = один Python-файл; код НЕ переписывается — только отчёт по каталогу wiki python/errors/swallowing.md. inline_limit_chars=0: литеральные {{ в f-строках. HITL нет: отчёты информационные, человек читает map/summary.md. Известный шов (общий с prompt_roaster): цитата с литеральным {{ident}} в отчёте уронит сборку промпта приёмщика (UNRESOLVED_PLACEHOLDER, TSK-0302) — прожарщику цитировать такие места без двойных скобок.",
+  "project": "exception_roaster",
+  "llm_profiles_path": "configs/exception_roaster/models.json",
+  "material": {"chunk_chars": 4000, "chunk_overlap": 400, "inline_limit_chars": 0},
+  "nodes": [
+    {
+      "id": "swallow_roast",
+      "config_path": "configs/exception_roaster/nodes/swallow_roast.json",
+      "gates": {"review_config_path": "configs/exception_roaster/nodes/swallow_roast_review.json"}
+    }
+  ],
+  "edges": []
+}

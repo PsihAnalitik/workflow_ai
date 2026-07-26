@@ -1,0 +1,10 @@
+{
+  "base_prompt_path": "configs/exception_hardener/prompts/harden.base.md",
+  "stage_map_path": "configs/exception_hardener/prompts/empty.stage.md",
+  "wiki_refs": [
+    {"path": "wiki/python/errors/handling.md", "version": "v1"},
+    {"path": "wiki/python/errors/swallowing.md", "version": "v1"}
+  ],
+  "tools": ["material_search", "material_get"],
+  "llm_profile": "default"
+}

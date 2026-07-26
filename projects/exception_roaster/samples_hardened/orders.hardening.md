@@ -1,0 +1,6 @@
+# Карта правок
+- load_config/8-9: [T3][S1][S5] Заменён голый `except:` с возвратом `{}` на конкретные перехваты `FileNotFoundError`, `PermissionError`, `json.JSONDecodeError` с пробросом `ConfigError` через `from e` (Т3); убран возврат пустого словаря как значения-заглушки без контракта (S5).
+- load_config/модуль: [T2] Создана доменная иерархия `OrderError` → `ConfigError` (с атрибутом `path`), `PaymentError` (с атрибутом `transaction_id`), `ParseOrdersError` (с атрибутами `partial_result` и `error_count`).
+- charge/34-37: [T3][S2][S4][S3] `except Exception` сужен до `(ConnectionError, TimeoutError)` — перехват только ожидаемых сетевых сбоев шлюза; неожиданные исключения пробрасываются наружу (S3). Добавлен `raise PaymentError(...) from e`: ошибка больше не проглатывается (S2), исходная причина сохранена через `from e` (S4).
+- parse_orders/43-53: [T2][S2] Счётчик ошибок (S8 из прошлой итерации) дополнен пробросом `ParseOrdersError` с частичными результатами и числом пропущенных строк в атрибутах `partial_result`/`error_count` — вызывающий код больше не получает неполный список молча (S2). На успешном пути (нет ошибок) поведение идентично исходному.
+- read_amount/57-59: [T3][S4] Добавлен `from e` к `raise RuntimeError(...)` для сохранения цепочки причин.

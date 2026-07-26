@@ -1,0 +1,14 @@
+{
+  "_comment": "Цех формирования обработки исключений (запрос автора 26.07.2026). Элемент map-прогона = один Python-файл. inline_limit_chars=0: в питоне легальны литеральные {{ в f-строках — только TOC + material_get (как в prompt_roaster). Гейт — ревьюер проглатывания по wiki python/errors/swallowing.md; HITL нет: правки читает человек в map/summary.md и применяет сам. Известный шов (общий с prompt_roaster): черновик с литеральным {{ident}} (f-строка f'{{x}}') уронит сборку промпта ревью-гейта (UNRESOLVED_PLACEHOLDER, решение TSK-0302).",
+  "project": "exception_hardener",
+  "llm_profiles_path": "configs/exception_hardener/models.json",
+  "material": {"chunk_chars": 4000, "chunk_overlap": 400, "inline_limit_chars": 0},
+  "nodes": [
+    {
+      "id": "harden",
+      "config_path": "configs/exception_hardener/nodes/harden.json",
+      "gates": {"review_config_path": "configs/exception_hardener/nodes/harden_review.json"}
+    }
+  ],
+  "edges": []
+}

@@ -1,0 +1,7 @@
+{
+  "base_prompt_path": "configs/exception_roaster/prompts/swallow_roast.base.md",
+  "stage_map_path": "configs/exception_roaster/prompts/empty.stage.md",
+  "wiki_refs": [{"path": "wiki/python/errors/swallowing.md", "version": "v1"}],
+  "tools": ["material_search", "material_get"],
+  "llm_profile": "default"
+}
