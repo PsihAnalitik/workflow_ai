@@ -167,7 +167,9 @@ def main(
     map_parser.add_argument("graph", help="имя цеха или путь к graph.json")
     map_source = map_parser.add_mutually_exclusive_group(required=True)
     map_source.add_argument(
-        "--files", default=None, help="glob файлов-элементов (например, 'prompts/*.md')"
+        "--files", default=None, action="append",
+        help="glob файлов-элементов (например, 'prompts/*.md'); можно повторять "
+             "для нескольких паттернов ({a,b}-скобки glob не поддерживает)",
     )
     map_source.add_argument(
         "--schema-tables", default=None, help="путь к schema.yaml — элемент = таблица"

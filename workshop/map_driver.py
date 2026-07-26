@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import glob as glob_module
+from collections.abc import Sequence
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
@@ -51,11 +52,19 @@ class MapReport:
     summary_path: str
 
 
-def split_files(pattern: str) -> Result[list[MapItem]]:
-    """TSK-2301а: элемент = файл по glob; slug = имя файла без расширения."""
-    paths = sorted(Path(p) for p in glob_module.glob(pattern) if Path(p).is_file())
+def split_files(pattern: str | Sequence[str]) -> Result[list[MapItem]]:
+    """TSK-2301а: элемент = файл по glob; slug = имя файла без расширения.
+
+    Принимает один паттерн или несколько (повторяемый --files): {a,b}-скобки
+    Python-glob не понимает, объединение паттернов — здесь, с дедупликацией.
+    """
+    patterns = [pattern] if isinstance(pattern, str) else list(pattern)
+    matched = {
+        Path(p) for pat in patterns for p in glob_module.glob(pat) if Path(p).is_file()
+    }
+    paths = sorted(matched)
     if not paths:
-        return Err(MAP_NO_ITEMS, f"glob не нашёл файлов: {pattern}")
+        return Err(MAP_NO_ITEMS, f"glob не нашёл файлов: {', '.join(patterns)}")
     items: list[MapItem] = []
     for path in paths:
         try:

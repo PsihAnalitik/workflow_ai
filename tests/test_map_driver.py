@@ -51,6 +51,14 @@ def test_split_files_sorted_and_slugged(tmp_path: Path) -> None:
     assert "Ревьюируемый файл: A_PROMPT.md" in result.value[0].content
 
 
+def test_split_files_multiple_patterns_deduped(tmp_path: Path) -> None:
+    (tmp_path / "a.md").write_text("A", encoding="utf-8")
+    (tmp_path / "b.md").write_text("B", encoding="utf-8")
+    result = split_files([str(tmp_path / "a.md"), str(tmp_path / "*.md")])
+    assert isinstance(result, Ok)
+    assert [item.slug for item in result.value] == ["a", "b"]  # дедуп + сортировка
+
+
 def test_split_files_empty_glob(tmp_path: Path) -> None:
     result = split_files(str(tmp_path / "*.md"))
     assert isinstance(result, Err)
