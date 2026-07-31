@@ -2,8 +2,8 @@
   "base_prompt_path": "configs/code_auditor/prompts/refutation.base.md",
   "stage_map_path": "configs/code_auditor/prompts/empty.stage.md",
   "wiki_refs": [
-    {"path": "wiki/security/cwe.md", "version": "v2"},
-    {"path": "wiki/security/reachability.md", "version": "v2"}
+    {"path": "wiki/security/cwe.md", "version": "v3"},
+    {"path": "wiki/security/reachability.md", "version": "v3"}
   ],
   "tools": ["material_search", "material_get"],
   "llm_profile": "default"

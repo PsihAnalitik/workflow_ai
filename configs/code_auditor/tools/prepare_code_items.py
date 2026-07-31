@@ -44,6 +44,35 @@ SCAN_COMMAND = (
 )
 
 
+def defuse_placeholders(source: str) -> tuple[str, int]:
+    """Разводит двойные фигурные скобки в исходнике: «{{» → «{ {».
+
+    WHY (TSK-2619): цитата такого места внутри артефакта уходит в промпт
+    следующего узла и роняет его сборку (UNRESOLVED_PLACEHOLDER), теряя
+    элемент целиком. Правило в промпте эту проблему не закрывает — оно
+    вероятностное: в контрольном прогоне узел его соблюдал, в полном
+    протащил «{{INPUTS}}» из workshop/prompt_builder.py.
+    Замена детерминирована и делается ДО модели (образец — санитизация TOC
+    в map-драйвере, TSK-2207); на семантику уязвимостей не влияет:
+    двойные скобки в Python встречаются только внутри строк и f-строк.
+    """
+    count = source.count("{" "{") + source.count("}" "}")
+    defused = source.replace("{" "{", "{ {").replace("}" "}", "} }")
+    return defused, count
+
+
+def number_lines(source: str) -> str:
+    """Нумерация строк исходника: локатор находки должен быть строкой.
+
+    WHY (TSK-2619): элемент виден узлам чанками, и без нумерации на крупных
+    файлах узел подставлял в locator идентификатор чанка («file.py:d1:03»)
+    вместо строки — такая находка непроверяема.
+    """
+    lines = source.splitlines()
+    width = len(str(len(lines))) if lines else 1
+    return "\n".join(f"{i:>{width}}| {line}" for i, line in enumerate(lines, 1))
+
+
 def scan(source: str, image: str, timeout_s: int) -> str:
     """Вывод сканеров по одному файлу; при недоступности песочницы — причина."""
     if not RULES_PATH.is_file():
@@ -110,11 +139,20 @@ def main() -> int:
     for path in paths:
         source = path.read_text(encoding="utf-8")
         element = f"{args.prefix}{path.stem}"
+        # сканеры видят ОРИГИНАЛ: номера строк их вывода должны совпадать с файлом
         scanners = scan(source, args.image, args.timeout_s)
+        defused, defused_count = defuse_placeholders(source)
+        note = (
+            f"\nВнимание: в исходнике {defused_count} мест с двойными фигурными "
+            f"скобками, они разведены пробелом («{{ {{») при сборке элемента."
+            if defused_count else ""
+        )
         item = (
             f"Аудируемый элемент: {element}\n"
-            f"Файл: {path.as_posix()}\n\n"
-            f"<source>\n{source}\n</source>\n\n"
+            f"Файл: {path.as_posix()}\n"
+            f"Строк: {len(source.splitlines())}; исходник ниже пронумерован, "
+            f"формат «НОМЕР| код»{note}\n\n"
+            f"<source>\n{number_lines(defused)}\n</source>\n\n"
             f"<scanners>\n{scanners}\n</scanners>\n"
         )
         (args.out / f"{element}.md").write_text(item, encoding="utf-8")
