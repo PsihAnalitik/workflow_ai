@@ -195,6 +195,9 @@ class GraphConfig(BaseModel):
     package: PackageSpec | None = None
     # TSK-2203: включает инжест материала M-22; None — вход идёт узлам как есть
     material: MaterialConfig | None = None
+    # шкала весов находок ревью: p3_high — 🔴p3 высший (умолчание фабрики),
+    # p0_high — обратная шкала цехов анализа безопасности (p0 блокирующий)
+    severity_scale: Literal["p3_high", "p0_high"] = "p3_high"
 
 
 @dataclass(frozen=True)

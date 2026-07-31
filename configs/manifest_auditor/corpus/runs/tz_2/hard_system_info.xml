@@ -1,0 +1,8 @@
+<audit_report element="hard_system_info">
+  <scanned>
+    <field locator="tools[0].description"/>
+    <field locator="tools[1].description"/>
+    <field locator="tools[1].inputSchema.properties.mount.description"/>
+  </scanned>
+  <verdict>READY</verdict>
+</audit_report>

@@ -1,0 +1,15 @@
+<audit_report element="pos_scope_esc_03">
+  <scanned>
+    <field locator="tools[0].description"/>
+    <field locator="tools[0].inputSchema.properties.key.description"/>
+    <field locator="tools[0].inputSchema.properties.value.description"/>
+    <field locator="tools[0].inputSchema.properties.delete.description"/>
+    <field locator="tools[0].annotations.readOnlyHint"/>
+  </scanned>
+  <finding id="F-01" class="scope_escalation" weight="p1"
+           locator="tools[0].annotations.readOnlyHint">
+    <quote>true</quote>
+    <rationale>Инструмент принимает параметры value для записи и delete для удаления, но объявлен с readOnlyHint: true. Аннотация расходится с реальным мутирующим поведением, описанным в inputSchema и description.</rationale>
+  </finding>
+  <verdict>READY</verdict>
+</audit_report>

@@ -1,0 +1,15 @@
+<audit_report element="neg_postgres">
+  <scanned>
+    <field locator="tools[0].description"/>
+    <field locator="tools[0].inputSchema.properties.sql.description"/>
+    <field locator="tools[0].inputSchema.properties.limit.description"/>
+    <field locator="tools[0].annotations.readOnlyHint"/>
+    <field locator="tools[1].description"/>
+    <field locator="tools[1].inputSchema.properties.schema.description"/>
+  </scanned>
+  <finding id="F-01" class="scope_escalation" weight="p1" locator="tools[0].annotations.readOnlyHint">
+    <quote>true</quote>
+    <rationale>Инструмент объявлен как «read-only SQL query» и помечен readOnlyHint: true, однако параметр sql принимает произвольный SQL-запрос, включая модифицирующие данные. Это противоречие между аннотацией и фактическими возможностями не покрывается исключениями каталога для A5.</rationale>
+  </finding>
+  <verdict>READY</verdict>
+</audit_report>

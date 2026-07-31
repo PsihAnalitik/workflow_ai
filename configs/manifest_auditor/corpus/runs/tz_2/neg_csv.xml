@@ -1,0 +1,10 @@
+<audit_report element="neg_csv">
+  <scanned>
+    <field locator="tools[0].description"/>
+    <field locator="tools[0].inputSchema.properties.path.description"/>
+    <field locator="tools[0].inputSchema.properties.delimiter.description"/>
+    <field locator="tools[1].description"/>
+    <field locator="tools[1].inputSchema.properties.path.description"/>
+  </scanned>
+  <verdict>READY</verdict>
+</audit_report>

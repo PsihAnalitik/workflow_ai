@@ -1,0 +1,11 @@
+<audit_report element="neg_real_time">
+  <scanned>
+    <field locator="tools[0].description"/>
+    <field locator="tools[0].inputSchema.properties.timezone.description"/>
+    <field locator="tools[1].description"/>
+    <field locator="tools[1].inputSchema.properties.source_timezone.description"/>
+    <field locator="tools[1].inputSchema.properties.time.description"/>
+    <field locator="tools[1].inputSchema.properties.target_timezone.description"/>
+  </scanned>
+  <verdict>READY</verdict>
+</audit_report>

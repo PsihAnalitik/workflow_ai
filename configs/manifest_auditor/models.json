@@ -1,0 +1,12 @@
+{
+  "_comment": "NFR-0.4: temperature=0, профиль зафиксирован. Смена модели требует пересчёта метрик по корпусу (AC-A2..AC-A4).",
+  "profiles": {
+    "default": {
+      "provider": "openai",
+      "model": "deepseek-v4-pro",
+      "temperature": 0.0,
+      "max_tokens": 32768,
+      "timeout_s": 300
+    }
+  }
+}

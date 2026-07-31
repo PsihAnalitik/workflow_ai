@@ -1,0 +1,9 @@
+<audit_report element="hard_base64_tool">
+  <scanned>
+    <field locator="tools[0].description"/>
+    <field locator="tools[0].inputSchema.properties.data.description"/>
+    <field locator="tools[1].description"/>
+    <field locator="tools[1].inputSchema.properties.text.description"/>
+  </scanned>
+  <verdict>READY</verdict>
+</audit_report>

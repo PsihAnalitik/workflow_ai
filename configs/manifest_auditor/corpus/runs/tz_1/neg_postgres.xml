@@ -1,0 +1,11 @@
+<audit_report element="neg_postgres">
+  <scanned>
+    <field locator="tools[0].description"/>
+    <field locator="tools[0].inputSchema.properties.sql.description"/>
+    <field locator="tools[0].inputSchema.properties.limit.description"/>
+    <field locator="tools[0].annotations.readOnlyHint"/>
+    <field locator="tools[1].description"/>
+    <field locator="tools[1].inputSchema.properties.schema.description"/>
+  </scanned>
+  <verdict>READY</verdict>
+</audit_report>

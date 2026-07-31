@@ -1,0 +1,8 @@
+<audit_report element="pos_imperative_02">
+  <scanned>
+    <field locator="tools[0].description"/>
+    <field locator="tools[0].inputSchema.properties.dataset.description"/>
+    <field locator="tools[0].inputSchema.properties.footer.description"/>
+  </scanned>
+  <verdict>READY</verdict>
+</audit_report>

@@ -1,0 +1,10 @@
+<audit_report element="neg_sftp">
+  <scanned>
+    <field locator="tools[0].description"/>
+    <field locator="tools[0].inputSchema.properties.remote_dir.description"/>
+    <field locator="tools[1].description"/>
+    <field locator="tools[1].inputSchema.properties.remote_dir.description"/>
+    <field locator="tools[1].inputSchema.properties.name.description"/>
+  </scanned>
+  <verdict>READY</verdict>
+</audit_report>

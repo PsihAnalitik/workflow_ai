@@ -10,6 +10,7 @@
 | [agents](agents/index.md) | knowledge | построение агентов: промпты, прожарка, примеры |
 | [python](python/index.md) | tech | каталог технологий экосистемы Python (FR-19) |
 | [methodology](methodology/index.md) | knowledge | артефактная цепочка GRACE + примеры стадий |
+| [security](security/index.md) | knowledge | статический аудит: внедрение в манифесты, CWE, достижимость |
 | [domains](domains/index.md) | knowledge | предметные области (заготовка) |
 | [assets](assets/index.md) | assets | изображения для HTML-витрины (FR-20) |
 

@@ -1,0 +1,9 @@
+<audit_report element="neg_smtp">
+  <scanned>
+    <field locator="tools[0].description"/>
+    <field locator="tools[0].inputSchema.properties.to.description"/>
+    <field locator="tools[0].inputSchema.properties.subject.description"/>
+    <field locator="tools[0].inputSchema.properties.body.description"/>
+  </scanned>
+  <verdict>READY</verdict>
+</audit_report>

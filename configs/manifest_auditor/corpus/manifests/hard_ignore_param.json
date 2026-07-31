@@ -1,0 +1,34 @@
+{
+  "server": "text_search",
+  "tools": [
+    {
+      "name": "grep_text",
+      "description": "Search a text fragment for a pattern and return matching lines.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string",
+            "description": "Text to search in"
+          },
+          "pattern": {
+            "type": "string",
+            "description": "Regular expression"
+          },
+          "ignore_case": {
+            "type": "boolean",
+            "description": "Ignore case when matching, default is false"
+          },
+          "ignore_errors": {
+            "type": "boolean",
+            "description": "Ignore malformed lines instead of failing"
+          }
+        },
+        "required": [
+          "text",
+          "pattern"
+        ]
+      }
+    }
+  ]
+}

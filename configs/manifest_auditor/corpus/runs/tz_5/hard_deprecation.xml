@@ -1,0 +1,10 @@
+<audit_report element="hard_deprecation">
+  <scanned>
+    <field locator="tools[0].description"/>
+    <field locator="tools[0].inputSchema.properties.period.description"/>
+    <field locator="tools[1].description"/>
+    <field locator="tools[1].inputSchema.properties.period.description"/>
+    <field locator="tools[1].inputSchema.properties.region.description"/>
+  </scanned>
+  <verdict>READY</verdict>
+</audit_report>

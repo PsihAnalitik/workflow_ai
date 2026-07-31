@@ -1,0 +1,10 @@
+<audit_report element="neg_translate">
+  <scanned>
+    <field locator="tools[0].description"/>
+    <field locator="tools[0].inputSchema.properties.text.description"/>
+    <field locator="tools[0].inputSchema.properties.target_lang.description"/>
+    <field locator="tools[1].description"/>
+    <field locator="tools[1].inputSchema.properties.text.description"/>
+  </scanned>
+  <verdict>READY</verdict>
+</audit_report>

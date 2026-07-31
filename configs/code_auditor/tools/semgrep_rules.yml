@@ -1,0 +1,53 @@
+# Локальный набор правил semgrep для внешнего оракула цеха code_auditor.
+# Локальный намеренно: сканеры гоняются в sandbox.py с --network none
+# (NFR-C1), а `--config auto` требует обращения к реестру правил.
+# Набор минимальный и детерминированный — это точка отсчёта (AC-C4),
+# а не полноценный статический анализатор.
+rules:
+  - id: sql-string-interpolation
+    languages: [python]
+    severity: ERROR
+    message: "SQL собран интерполяцией строки (CWE-89)"
+    patterns:
+      - pattern-either:
+          - pattern: $CUR.execute(f"...", ...)
+          - pattern: $CUR.execute("..." % ..., ...)
+          - pattern: $CUR.execute("..." + ..., ...)
+
+  - id: subprocess-shell-true
+    languages: [python]
+    severity: ERROR
+    message: "Запуск через оболочку с shell=True (CWE-78)"
+    patterns:
+      - pattern-either:
+          - pattern: subprocess.$F(..., shell=True, ...)
+          - pattern: os.system(...)
+          - pattern: os.popen(...)
+
+  - id: unsafe-deserialization
+    languages: [python]
+    severity: ERROR
+    message: "Небезопасная десериализация (CWE-502)"
+    patterns:
+      - pattern-either:
+          - pattern: pickle.loads(...)
+          - pattern: yaml.load($X)
+          - pattern: marshal.loads(...)
+
+  - id: tls-verification-disabled
+    languages: [python]
+    severity: WARNING
+    message: "Проверка TLS отключена (CWE-295)"
+    patterns:
+      - pattern-either:
+          - pattern: requests.$F(..., verify=False, ...)
+          - pattern: ssl._create_unverified_context(...)
+
+  - id: dangerous-eval
+    languages: [python]
+    severity: ERROR
+    message: "Исполнение выражения из данных (CWE-95)"
+    patterns:
+      - pattern-either:
+          - pattern: eval(...)
+          - pattern: exec(...)

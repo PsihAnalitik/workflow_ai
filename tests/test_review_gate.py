@@ -8,7 +8,10 @@ from workshop.models import Artifact, ArtifactRef
 from workshop.result import Err, Ok
 from workshop.review_gate import (
     REPORT_UNPARSEABLE,
+    SCALE_P0_HIGH,
     VERDICT_UNPARSEABLE,
+    Finding,
+    ReviewReport,
     evaluate_gate,
     findings_as_context,
     parse_verdict,
@@ -62,6 +65,33 @@ def test_empty_report_with_explicit_gate_passes(make_config, tmp_path: Path) -> 
     assert isinstance(report, Ok)
     assert report.value.findings == ()
     assert evaluate_gate(report.value).passed is True
+
+
+# --- шкала весов объявляется цехом (GraphConfig.severity_scale) ---
+
+def test_gate_p0_high_scale_blocks_on_p0_p1() -> None:
+    """У цехов анализа безопасности шкала обратная: блокируют p0/p1, не p3/p2."""
+    report = ReviewReport(findings=(
+        Finding(weight=0, rule="R1", location="tools[0]", text="секрет в описании"),
+        Finding(weight=3, rule="R4", location="tools[1]", text="мелкая опечатка"),
+    ))
+    gate = evaluate_gate(report, SCALE_P0_HIGH)
+    assert gate.passed is False
+    assert [f.weight for f in gate.open_findings] == [0]   # p3 в этой шкале низший
+
+
+def test_gate_default_scale_unchanged_by_new_parameter() -> None:
+    """Умолчание фабрики не меняется: блокируют p3/p2, пропускают p1/p0."""
+    report = ReviewReport(findings=(
+        Finding(weight=3, rule="R1", location="a", text="критично"),
+        Finding(weight=1, rule="R2", location="b", text="мелочь"),
+    ))
+    gate = evaluate_gate(report)
+    assert gate.passed is False
+    assert [f.weight for f in gate.open_findings] == [3]
+    assert evaluate_gate(ReviewReport(findings=(
+        Finding(weight=1, rule="R2", location="b", text="мелочь"),
+    ))).passed is True
 
 
 # --- TSK-0703: parse_verdict ---

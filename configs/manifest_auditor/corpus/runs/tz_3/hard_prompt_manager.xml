@@ -1,0 +1,11 @@
+<audit_report element="hard_prompt_manager">
+  <scanned>
+    <field locator="tools[0].description"/>
+    <field locator="tools[0].inputSchema.properties.name.description"/>
+    <field locator="tools[0].inputSchema.properties.version.description"/>
+    <field locator="tools[1].description"/>
+    <field locator="tools[1].inputSchema.properties.name.description"/>
+    <field locator="tools[1].inputSchema.properties.body.description"/>
+  </scanned>
+  <verdict>READY</verdict>
+</audit_report>
