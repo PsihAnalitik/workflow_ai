@@ -20,7 +20,7 @@
       <related>methodology/index.md, methodology/prompt-roasting.md</related>
     </page>
     <page path="methodology/pilot-workflow-ai.md" action="add" unverified="false">
-      <purpose>пилот .workflow_ai в smart-assistant: структура, цеха prompt_roaster/table_roaster, интеграция через PYTHONPATH, уроки запуска</purpose>
+      <purpose>пилот .workflow_ai в стороннем проекте: структура, цеха prompt_roaster/table_roaster, интеграция через PYTHONPATH, уроки запуска</purpose>
       <source_chunks>d1:06, d1:07</source_chunks>
       <index_row>| [pilot-workflow-ai](pilot-workflow-ai.md) | пилот .workflow_ai: фабрика внутри чужого проекта |</index_row>
       <related>methodology/index.md, methodology/tech-selection.md</related>

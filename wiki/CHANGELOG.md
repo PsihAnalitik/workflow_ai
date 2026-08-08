@@ -224,11 +224,11 @@ python/django/index.md у трёх дочерних страниц. Гейт wik
 | `python/django/views_urls.md` | — | `c45018de634b00b2` |
 | `python/index.md` | — | `227e7fb8aaa5e245` |
 
-## 2026-07-24 — синхронизация промптинговой области из smart-assistant/.workflow_ai
+## 2026-07-24 — синхронизация промптинговой области из .workflow_ai стороннего проекта
 
 **Основание: перенос обновлений методологии прожарки (review v4: канонический
 шаблон, П9–П10, хвостовая `<task>`; examples v2; новый grounding-протокол
-found_data) из копии фабрики smart-assistant. agents/index.md — merge (сохранена
+found_data) из копии фабрики стороннего проекта. agents/index.md — merge (сохранена
 related-ссылка на методологию). Проверка: wiki-check, 42 страницы.**
 
 | Файл | Роль | sha256[:16] |

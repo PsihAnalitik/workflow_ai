@@ -158,7 +158,7 @@ class LexicalRetriever:
 
 
 class EncodeClient(Protocol):
-    """Клиент сервиса эмбеддингов (контракт bge-m3-service из smart-assistant)."""
+    """Клиент сервиса эмбеддингов (контракт bge-m3-service из стороннего проекта)."""
 
     def encode(self, texts: list[str]) -> Result[list[list[float]]]: ...
 

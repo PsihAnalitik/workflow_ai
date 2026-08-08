@@ -1,14 +1,14 @@
 # wiki: pilot-workflow-ai (v1)
 
-Пилот `.workflow_ai` в проекте smart-assistant — фабрика, встроенная внутрь
+Пилот `.workflow_ai` в стороннем проекте — фабрика, встроенная внутрь
 чужого проекта. Все пути фабрики (`configs/`, `wiki/`, `projects/`)
 относительны к рабочей директории, поэтому `.workflow_ai/` как «фабричный
-корень» внутри smart-assistant работает из коробки.
+корень» внутри стороннего проекта работает из коробки.
 
 ## Структура
 
 ```
-smart-assistant/.workflow_ai/
+<сторонний>/.workflow_ai/
 ├── configs/         # конфиги цехов prompt_roaster и table_roaster
 ├── wiki/            # методология прожарки (реплика из фабрики)
 ├── projects/        # результаты прогонов
@@ -25,7 +25,7 @@ smart-assistant/.workflow_ai/
 - `.env` — `WORKSHOP_DB_DSN` для db_query; лежит в `.gitignore`, никогда
   не коммитится.
 - Журналы прогонов (`projects/*/runs/`, `projects/*/map/`) и материалы
-  smart-assistant (промпты, schema.yaml) — в `.gitignore`: чужой проект,
+  стороннего проекта (промпты, schema.yaml) — в `.gitignore`: чужой проект,
   на публичном GitHub не место.
 
 ## Извлечённые уроки
