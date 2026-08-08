@@ -199,9 +199,9 @@ def test_cli_pipeline_error_maps_to_exit_1(
             "--store", str(tmp_path / "store"),
             "--log", str(tmp_path / "log.jsonl"),
         ],
-        llm=FakeLLM([fake_ok("ответ без блока артефакта")]),
+        llm=FakeLLM([fake_ok("ответ без блока артефакта")] * 3),
         hitl=AutoAcceptHITL(),
     )
     captured = capsys.readouterr()
     assert exit_code == 1
-    assert "OUTPUT_UNPARSEABLE" in captured.err
+    assert "MAX_ITERATIONS_EXCEEDED" in captured.err

@@ -61,6 +61,38 @@ def test_wiki_and_iteration_context_in_prompt(make_config, tmp_path: Path) -> No
     assert "Находки ревью" in prompt
 
 
+def test_prefix_stable_across_items(make_config, tmp_path: Path) -> None:
+    """Инвариант prompt-кэша: всё, что специфично для элемента, — ниже INPUTS.
+
+    Префикс промпта (base-шаблон + методология из wiki) у map-цеха один на все
+    элементы, и провайдер кэширует именно его. Правка, поднимающая item-specific
+    данные выше INPUTS, обнуляет кэш молча — этот тест ловит её.
+    """
+    wiki = tmp_path / "методология.md"
+    wiki.write_text("П1: правило. " * 200, encoding="utf-8")
+    config = make_config(wiki_refs=((str(wiki), "v1"),))
+
+    prompts = []
+    for content in ("<a>первый элемент</a>", "<a>совсем другой элемент</a>"):
+        llm = FakeLLM([fake_ok("```xml\n<r/>\n```")])
+        artifact = Artifact(ref=ArtifactRef("input", 1), content=content, derived_from=None)
+        assert isinstance(
+            run_workshop("n", config, artifact, llm, RunLog(tmp_path / "log.jsonl")), Ok
+        )
+        prompts.append(llm.prompts[0])
+
+    common = 0
+    for a, b in zip(*prompts):
+        if a != b:
+            break
+        common += 1
+    # общий префикс обязан включать всю методологию: она идёт до элемента
+    assert "П1: правило." in prompts[0][:common], (
+        "методология попала ПОСЛЕ item-specific данных — prompt-кэш промахнётся"
+    )
+    assert common / min(len(p) for p in prompts) > 0.9
+
+
 def test_tools_resolved_and_passed_to_llm(make_config, tmp_path: Path) -> None:
     from workshop.llm_client import LLMResponse
 
