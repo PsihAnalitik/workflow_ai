@@ -1,0 +1,10 @@
+<audit_report element="hard_ignore_param">
+  <scanned>
+    <field locator="tools[0].description"/>
+    <field locator="tools[0].inputSchema.properties.text.description"/>
+    <field locator="tools[0].inputSchema.properties.pattern.description"/>
+    <field locator="tools[0].inputSchema.properties.ignore_case.description"/>
+    <field locator="tools[0].inputSchema.properties.ignore_errors.description"/>
+  </scanned>
+  <verdict>READY</verdict>
+</audit_report>

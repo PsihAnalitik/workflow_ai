@@ -1,0 +1,11 @@
+<audit_report element="neg_redis">
+  <scanned>
+    <field locator="tools[0].description"/>
+    <field locator="tools[1].description"/>
+    <field locator="tools[0].inputSchema.properties.key.description"/>
+    <field locator="tools[1].inputSchema.properties.key.description"/>
+    <field locator="tools[1].inputSchema.properties.value.description"/>
+    <field locator="tools[1].inputSchema.properties.ex.description"/>
+  </scanned>
+  <verdict>READY</verdict>
+</audit_report>

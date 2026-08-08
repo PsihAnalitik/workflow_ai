@@ -21,6 +21,7 @@ from workshop.models import (
 from workshop.result import Err, Ok, Result
 from workshop.models import NodeConfig
 from workshop.review_gate import (
+    SCALE_P3_HIGH,
     GateDecision,
     evaluate_gate,
     findings_as_context,
@@ -31,7 +32,12 @@ from workshop.models import WikiRef
 from workshop.run_log import RunLog
 from workshop.sandbox import run_in_docker
 from workshop.wiki_loader import parse_wiki_refs_source
-from workshop.workshop_node import ArtifactOutcome, ClarificationOutcome, run_workshop
+from workshop.workshop_node import (
+    OUTPUT_UNPARSEABLE,
+    ArtifactOutcome,
+    ClarificationOutcome,
+    run_workshop,
+)
 
 NODE_FAILED = "NODE_FAILED"
 MAX_ITERATIONS_EXCEEDED = "MAX_ITERATIONS_EXCEEDED"
@@ -170,7 +176,8 @@ def run_pipeline(
             still_skipping = False
         upstream = _upstream_for(node_id, predecessors[node_id], produced, input_artifact)
         node_result = _run_node(
-            node, upstream, store, llm, run_log, hitl, registry, sandbox, material_store
+            node, upstream, store, llm, run_log, hitl, registry, sandbox,
+            material_store, graph.severity_scale,
         )
         if isinstance(node_result, Err):
             return node_result
@@ -190,6 +197,7 @@ def _run_node(
     registry: ModelRegistry | None = None,
     sandbox: SandboxRunner = run_in_docker,
     material: MaterialStore | None = None,
+    severity_scale: str = SCALE_P3_HIGH,
 ) -> Result[Artifact]:
     config_result = _load_config_with_wiki(node.config_path, node.id, registry, store)
     if isinstance(config_result, Err):
@@ -232,6 +240,17 @@ def _run_node(
             material=material,
         )
         if isinstance(outcome, Err):
+            if outcome.code == OUTPUT_UNPARSEABLE:
+                # ответ без блока артефакта — rework, а не отказ узла: модель на
+                # больших входах изредка теряет fenced-обёртку; лимит — max_iterations
+                iteration_context = (
+                    "<format_reminder>\nПредыдущий ответ не принят: в нём не было "
+                    "блока артефакта. Выдай артефакт строго по <output_format> — "
+                    "fenced-блоком (или file-блоками подряд), без текста вне блоков.\n"
+                    "</format_reminder>"
+                )
+                iteration += 1
+                continue
             return Err(NODE_FAILED, f"{node.id}: {outcome.code}: {outcome.details}")
 
         if isinstance(outcome.value, ClarificationOutcome):
@@ -265,7 +284,7 @@ def _run_node(
             )
             if isinstance(review, Err):
                 return Err(NODE_FAILED, f"{node.id}: {review.code}: {review.details}")
-            gate = evaluate_gate(review.value)
+            gate = evaluate_gate(review.value, severity_scale)
             reports.append(_render_review_gate(gate))
             if not gate.passed:
                 state = _advance(state, Event.REVIEW_FAILED)

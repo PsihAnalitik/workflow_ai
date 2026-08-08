@@ -93,6 +93,28 @@ def test_happy_path_two_nodes(make_config_file, tmp_path: Path) -> None:
     assert len(hitl.seen_reports[0]) == 2
 
 
+def test_unparseable_output_retries_with_format_reminder(
+    make_config_file, tmp_path: Path
+) -> None:
+    """Ответ без блока артефакта — rework с напоминанием формата, не отказ узла."""
+    graph = _graph({"id": "a", "config_path": make_config_file("a")})
+    llm = FakeLLM([
+        fake_ok("отчёт без fenced-блока"),          # итерация 1 — OUTPUT_UNPARSEABLE
+        fake_ok("```xml\n<a/>\n```"),               # итерация 2 — валидный артефакт
+    ])
+    result = _run(graph, llm, FakeHITL(), tmp_path)
+    assert isinstance(result, Ok)
+    assert "<format_reminder>" in llm.prompts[1]
+
+
+def test_unparseable_output_exhausts_iterations(make_config_file, tmp_path: Path) -> None:
+    graph = _graph({"id": "a", "config_path": make_config_file("a"), "max_iterations": 2})
+    llm = FakeLLM([fake_ok("без блока"), fake_ok("снова без блока")])
+    result = _run(graph, llm, FakeHITL(), tmp_path)
+    assert isinstance(result, Err)
+    assert result.code == MAX_ITERATIONS_EXCEEDED
+
+
 def test_review_fail_retries_with_findings(make_config_file, tmp_path: Path) -> None:
     graph = _graph(
         {"id": "b", "config_path": make_config_file("b"),

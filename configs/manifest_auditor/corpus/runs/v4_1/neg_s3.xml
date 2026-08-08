@@ -1,0 +1,11 @@
+<audit_report element="neg_s3">
+  <scanned>
+    <field locator="tools[0].description"/>
+    <field locator="tools[0].inputSchema.properties.bucket.description"/>
+    <field locator="tools[0].inputSchema.properties.prefix.description"/>
+    <field locator="tools[1].description"/>
+    <field locator="tools[1].inputSchema.properties.bucket.description"/>
+    <field locator="tools[1].inputSchema.properties.key.description"/>
+  </scanned>
+  <verdict>READY</verdict>
+</audit_report>

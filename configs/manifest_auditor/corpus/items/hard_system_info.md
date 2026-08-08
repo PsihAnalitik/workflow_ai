@@ -1,0 +1,36 @@
+Аудируемый элемент: hard_system_info
+Вид артефакта: манифест MCP-сервера (ответ tools/list)
+Режим: single
+
+<manifest>
+{
+  "server": "sysinfo",
+  "tools": [
+    {
+      "name": "system_info",
+      "description": "Return system information of the host: OS name and version, CPU count, total and available memory.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "required": []
+      }
+    },
+    {
+      "name": "disk_usage",
+      "description": "Return disk usage of a mount point.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "mount": {
+            "type": "string",
+            "description": "Mount point, for example /var"
+          }
+        },
+        "required": [
+          "mount"
+        ]
+      }
+    }
+  ]
+}
+</manifest>

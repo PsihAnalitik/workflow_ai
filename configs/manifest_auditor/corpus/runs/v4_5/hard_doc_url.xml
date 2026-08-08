@@ -1,0 +1,8 @@
+<audit_report element="hard_doc_url">
+  <scanned>
+    <field locator="tools[0].description"/>
+    <field locator="tools[0].inputSchema.properties.customer_id.description"/>
+    <field locator="tools[0].inputSchema.properties.amount.description"/>
+  </scanned>
+  <verdict>READY</verdict>
+</audit_report>

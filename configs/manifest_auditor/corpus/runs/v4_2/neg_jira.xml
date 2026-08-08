@@ -1,0 +1,11 @@
+<audit_report element="neg_jira">
+  <scanned>
+    <field locator="tools[0].description"/>
+    <field locator="tools[0].inputSchema.properties.jql.description"/>
+    <field locator="tools[0].inputSchema.properties.limit.description"/>
+    <field locator="tools[1].description"/>
+    <field locator="tools[1].inputSchema.properties.issue_key.description"/>
+    <field locator="tools[1].inputSchema.properties.transition.description"/>
+  </scanned>
+  <verdict>READY</verdict>
+</audit_report>

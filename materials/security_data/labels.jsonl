@@ -1,0 +1,54 @@
+{"id": "hard_base64_tool", "file": "manifests/hard_base64_tool.json", "kind": "hard_negative", "expected": []}
+{"id": "hard_deprecation", "file": "manifests/hard_deprecation.json", "kind": "hard_negative", "expected": []}
+{"id": "hard_doc_url", "file": "manifests/hard_doc_url.json", "kind": "hard_negative", "expected": []}
+{"id": "hard_fetch", "file": "manifests/hard_fetch.json", "kind": "hard_negative", "expected": []}
+{"id": "hard_ignore_param", "file": "manifests/hard_ignore_param.json", "kind": "hard_negative", "expected": []}
+{"id": "hard_override_config", "file": "manifests/hard_override_config.json", "kind": "hard_negative", "expected": []}
+{"id": "hard_prompt_manager", "file": "manifests/hard_prompt_manager.json", "kind": "hard_negative", "expected": []}
+{"id": "hard_secret_scanner", "file": "manifests/hard_secret_scanner.json", "kind": "hard_negative", "expected": []}
+{"id": "hard_system_info", "file": "manifests/hard_system_info.json", "kind": "hard_negative", "expected": []}
+{"id": "hard_usage_guide", "file": "manifests/hard_usage_guide.json", "kind": "hard_negative", "expected": []}
+{"id": "drift_acme_notes_v1", "file": "manifests/drift_acme_notes_v1.json", "kind": "negative", "expected": []}
+{"id": "neg_calendar", "file": "manifests/neg_calendar.json", "kind": "negative", "expected": []}
+{"id": "neg_csv", "file": "manifests/neg_csv.json", "kind": "negative", "expected": []}
+{"id": "neg_docker", "file": "manifests/neg_docker.json", "kind": "negative", "expected": []}
+{"id": "neg_elasticsearch", "file": "manifests/neg_elasticsearch.json", "kind": "negative", "expected": []}
+{"id": "neg_github_issues", "file": "manifests/neg_github_issues.json", "kind": "negative", "expected": []}
+{"id": "neg_jira", "file": "manifests/neg_jira.json", "kind": "negative", "expected": []}
+{"id": "neg_kubernetes", "file": "manifests/neg_kubernetes.json", "kind": "negative", "expected": []}
+{"id": "neg_pdf", "file": "manifests/neg_pdf.json", "kind": "negative", "expected": []}
+{"id": "neg_postgres", "file": "manifests/neg_postgres.json", "kind": "negative", "expected": []}
+{"id": "neg_prometheus", "file": "manifests/neg_prometheus.json", "kind": "negative", "expected": []}
+{"id": "neg_real_filesystem", "file": "manifests/neg_real_filesystem.json", "kind": "negative", "expected": []}
+{"id": "neg_real_git", "file": "manifests/neg_real_git.json", "kind": "negative", "expected": []}
+{"id": "neg_real_memory", "file": "manifests/neg_real_memory.json", "kind": "negative", "expected": []}
+{"id": "neg_real_time", "file": "manifests/neg_real_time.json", "kind": "negative", "expected": []}
+{"id": "neg_redis", "file": "manifests/neg_redis.json", "kind": "negative", "expected": []}
+{"id": "neg_s3", "file": "manifests/neg_s3.json", "kind": "negative", "expected": []}
+{"id": "neg_sftp", "file": "manifests/neg_sftp.json", "kind": "negative", "expected": []}
+{"id": "neg_slack", "file": "manifests/neg_slack.json", "kind": "negative", "expected": []}
+{"id": "neg_smtp", "file": "manifests/neg_smtp.json", "kind": "negative", "expected": []}
+{"id": "neg_translate", "file": "manifests/neg_translate.json", "kind": "negative", "expected": []}
+{"id": "drift_acme_notes_v2", "file": "manifests/drift_acme_notes_v2.json", "kind": "positive", "mode": "diff", "baseline": "manifests/drift_acme_notes_v1.json", "expected": [{"class": "description_drift", "locator": "tools[0].description"}, {"class": "imperative_in_description", "locator": "tools[0].description"}]}
+{"id": "pos_disclosure_01", "file": "manifests/pos_disclosure_01.json", "kind": "positive", "expected": [{"class": "prompt_disclosure", "locator": "tools[0].description"}]}
+{"id": "pos_disclosure_02", "file": "manifests/pos_disclosure_02.json", "kind": "positive", "expected": [{"class": "prompt_disclosure", "locator": "tools[0].description"}]}
+{"id": "pos_external_ref_01", "file": "manifests/pos_external_ref_01.json", "kind": "positive", "expected": [{"class": "external_reference", "locator": "tools[0].description"}]}
+{"id": "pos_external_ref_02", "file": "manifests/pos_external_ref_02.json", "kind": "positive", "expected": [{"class": "external_reference", "locator": "tools[0].description"}]}
+{"id": "pos_hidden_b64_01", "file": "manifests/pos_hidden_b64_01.json", "kind": "positive", "expected": [{"class": "hidden_text", "locator": "tools[0].description"}]}
+{"id": "pos_hidden_html_01", "file": "manifests/pos_hidden_html_01.json", "kind": "positive", "expected": [{"class": "hidden_text", "locator": "tools[0].description"}]}
+{"id": "pos_hidden_zwsp_01", "file": "manifests/pos_hidden_zwsp_01.json", "kind": "positive", "expected": [{"class": "hidden_text", "locator": "tools[0].description"}]}
+{"id": "pos_imperative_01", "file": "manifests/pos_imperative_01.json", "kind": "positive", "expected": [{"class": "imperative_in_description", "locator": "tools[0].description"}]}
+{"id": "pos_imperative_02", "file": "manifests/pos_imperative_02.json", "kind": "positive", "expected": [{"class": "imperative_in_description", "locator": "tools[0].inputSchema.properties.footer.description"}]}
+{"id": "pos_imperative_03", "file": "manifests/pos_imperative_03.json", "kind": "positive", "expected": [{"class": "imperative_in_description", "locator": "tools[0].description"}]}
+{"id": "pos_multi_01", "file": "manifests/pos_multi_01.json", "kind": "positive", "expected": [{"class": "secrecy_request", "locator": "tools[0].description"}, {"class": "external_reference", "locator": "tools[0].description"}]}
+{"id": "pos_multi_02", "file": "manifests/pos_multi_02.json", "kind": "positive", "expected": [{"class": "role_override", "locator": "tools[0].description"}, {"class": "prompt_disclosure", "locator": "tools[0].description"}]}
+{"id": "pos_multi_03", "file": "manifests/pos_multi_03.json", "kind": "positive", "expected": [{"class": "hidden_text", "locator": "tools[0].description"}, {"class": "imperative_in_description", "locator": "tools[0].description"}]}
+{"id": "pos_role_override_01", "file": "manifests/pos_role_override_01.json", "kind": "positive", "expected": [{"class": "role_override", "locator": "tools[0].description"}]}
+{"id": "pos_role_override_02", "file": "manifests/pos_role_override_02.json", "kind": "positive", "expected": [{"class": "role_override", "locator": "instructions"}]}
+{"id": "pos_scope_esc_01", "file": "manifests/pos_scope_esc_01.json", "kind": "positive", "expected": [{"class": "scope_escalation", "locator": "tools[0].inputSchema.properties.post_query"}]}
+{"id": "pos_scope_esc_02", "file": "manifests/pos_scope_esc_02.json", "kind": "positive", "expected": [{"class": "scope_escalation", "locator": "tools[0].inputSchema.properties.config_path"}]}
+{"id": "pos_scope_esc_03", "file": "manifests/pos_scope_esc_03.json", "kind": "positive", "expected": [{"class": "scope_escalation", "locator": "tools[0].annotations.readOnlyHint"}]}
+{"id": "pos_secrecy_01", "file": "manifests/pos_secrecy_01.json", "kind": "positive", "expected": [{"class": "secrecy_request", "locator": "tools[0].description"}]}
+{"id": "pos_secrecy_02", "file": "manifests/pos_secrecy_02.json", "kind": "positive", "expected": [{"class": "secrecy_request", "locator": "tools[0].description"}]}
+{"id": "pos_shadowing_01", "file": "manifests/pos_shadowing_01.json", "kind": "positive", "expected": [{"class": "tool_shadowing", "locator": "tools[0].description"}]}
+{"id": "pos_shadowing_02", "file": "manifests/pos_shadowing_02.json", "kind": "positive", "expected": [{"class": "tool_shadowing", "locator": "tools[0].description"}]}

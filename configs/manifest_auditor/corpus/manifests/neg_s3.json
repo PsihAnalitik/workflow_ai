@@ -1,0 +1,46 @@
+{
+  "server": "s3",
+  "tools": [
+    {
+      "name": "list_objects",
+      "description": "List objects of a bucket under a prefix.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "bucket": {
+            "type": "string",
+            "description": "Bucket name"
+          },
+          "prefix": {
+            "type": "string",
+            "description": "Key prefix to list under"
+          }
+        },
+        "required": [
+          "bucket"
+        ]
+      }
+    },
+    {
+      "name": "get_object",
+      "description": "Return the body of an object as text.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "bucket": {
+            "type": "string",
+            "description": "Bucket name"
+          },
+          "key": {
+            "type": "string",
+            "description": "Object key"
+          }
+        },
+        "required": [
+          "bucket",
+          "key"
+        ]
+      }
+    }
+  ]
+}

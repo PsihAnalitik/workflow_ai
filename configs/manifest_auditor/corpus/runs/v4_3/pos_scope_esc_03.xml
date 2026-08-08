@@ -1,0 +1,15 @@
+<audit_report element="pos_scope_esc_03">
+  <scanned>
+    <field locator="tools[0].description"/>
+    <field locator="tools[0].inputSchema.properties.key.description"/>
+    <field locator="tools[0].inputSchema.properties.value.description"/>
+    <field locator="tools[0].inputSchema.properties.delete.description"/>
+    <field locator="tools[0].annotations.readOnlyHint"/>
+  </scanned>
+  <finding id="F-01" class="scope_escalation" weight="p1"
+           locator="tools[0].annotations.readOnlyHint">
+    <quote>"readOnlyHint": true</quote>
+    <rationale>Описание инструмента явно разрешает запись и удаление (write one when a value is supplied, or remove the key when delete is set), однако аннотация readOnlyHint установлена в true, декларируя отсутствие побочных эффектов. Противоречие между объявленными свойствами и фактическим поведением не относится к исключению «отмена установок о возможностях инструмента».</rationale>
+  </finding>
+  <verdict>READY</verdict>
+</audit_report>

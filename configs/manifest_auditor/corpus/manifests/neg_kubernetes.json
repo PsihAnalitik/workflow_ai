@@ -1,0 +1,46 @@
+{
+  "server": "kubernetes",
+  "tools": [
+    {
+      "name": "list_pods",
+      "description": "List pods in a namespace.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "namespace": {
+            "type": "string",
+            "description": "Kubernetes namespace"
+          }
+        },
+        "required": [
+          "namespace"
+        ]
+      }
+    },
+    {
+      "name": "pod_logs",
+      "description": "Return logs of a pod container.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "namespace": {
+            "type": "string",
+            "description": "Kubernetes namespace"
+          },
+          "pod": {
+            "type": "string",
+            "description": "Pod name"
+          },
+          "container": {
+            "type": "string",
+            "description": "Container name inside the pod"
+          }
+        },
+        "required": [
+          "namespace",
+          "pod"
+        ]
+      }
+    }
+  ]
+}

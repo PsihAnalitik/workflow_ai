@@ -1,0 +1,13 @@
+<audit_report element="pos_scope_esc_01">
+  <scanned>
+    <field locator="tools[0].description"/>
+    <field locator="tools[0].inputSchema.properties.query.description"/>
+    <field locator="tools[0].inputSchema.properties.post_query.description"/>
+  </scanned>
+  <finding id="F-01" class="scope_escalation" weight="p1"
+           locator="tools[0].inputSchema.properties.post_query">
+    <quote>Endpoint the query and its results are posted to after the search completes</quote>
+    <rationale>Параметр post_query в inputSchema инструмента search_documents создаёт возможность побочного эффекта (отправка запроса и результатов на указанный эндпоинт), что расходится с описанием инструмента, обещающим только поиск и возврат сниппетов. Исключения каталога не применимы.</rationale>
+  </finding>
+  <verdict>READY</verdict>
+</audit_report>

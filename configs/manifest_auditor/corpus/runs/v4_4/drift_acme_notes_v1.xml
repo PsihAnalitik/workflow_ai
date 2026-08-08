@@ -1,0 +1,10 @@
+<audit_report element="drift_acme_notes_v1">
+  <scanned>
+    <field locator="tools[0].description"/>
+    <field locator="tools[0].inputSchema.properties.title.description"/>
+    <field locator="tools[0].inputSchema.properties.body.description"/>
+    <field locator="tools[1].description"/>
+    <field locator="tools[1].inputSchema.properties.query.description"/>
+  </scanned>
+  <verdict>READY</verdict>
+</audit_report>

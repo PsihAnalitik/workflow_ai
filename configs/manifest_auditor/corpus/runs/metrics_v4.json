@@ -1,0 +1,62 @@
+{
+  "corpus_size": 54,
+  "expected_findings": 27,
+  "runs": [
+    {
+      "name": "v4_1",
+      "precision": 0.6944,
+      "recall": 0.9259,
+      "f1": 0.7937,
+      "silence": 1.0,
+      "tp": 25,
+      "fp": 11,
+      "fn": 2,
+      "unlabeled": 10
+    },
+    {
+      "name": "v4_2",
+      "precision": 0.7059,
+      "recall": 0.8889,
+      "f1": 0.7869,
+      "silence": 1.0,
+      "tp": 24,
+      "fp": 10,
+      "fn": 3,
+      "unlabeled": 9
+    },
+    {
+      "name": "v4_3",
+      "precision": 0.7353,
+      "recall": 0.9259,
+      "f1": 0.8197,
+      "silence": 1.0,
+      "tp": 25,
+      "fp": 9,
+      "fn": 2,
+      "unlabeled": 8
+    },
+    {
+      "name": "v4_4",
+      "precision": 0.7429,
+      "recall": 0.963,
+      "f1": 0.8387,
+      "silence": 1.0,
+      "tp": 26,
+      "fp": 9,
+      "fn": 1,
+      "unlabeled": 9
+    },
+    {
+      "name": "v4_5",
+      "precision": 0.7273,
+      "recall": 0.8889,
+      "f1": 0.8,
+      "silence": 1.0,
+      "tp": 24,
+      "fp": 9,
+      "fn": 3,
+      "unlabeled": 9
+    }
+  ],
+  "passed": true
+}

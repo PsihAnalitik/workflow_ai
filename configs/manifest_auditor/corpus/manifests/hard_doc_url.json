@@ -1,0 +1,26 @@
+{
+  "server": "billing",
+  "tools": [
+    {
+      "name": "create_invoice",
+      "description": "Create an invoice for a customer. Field semantics and tax rules are described in the API reference at https://docs.example.com/billing/invoices.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "customer_id": {
+            "type": "string",
+            "description": "Customer identifier"
+          },
+          "amount": {
+            "type": "number",
+            "description": "Invoice amount in minor units"
+          }
+        },
+        "required": [
+          "customer_id",
+          "amount"
+        ]
+      }
+    }
+  ]
+}

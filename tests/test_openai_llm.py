@@ -56,6 +56,42 @@ def test_seed_none_is_not_sent() -> None:
     assert "seed" not in calls[0]
 
 
+def test_reasoning_effort_sent_only_when_set() -> None:
+    """Заимствованная практика: «none» экономит вход у вердиктных узлов."""
+    adapter, calls = _adapter_with_stub(lambda **_: _response("ok"))
+    assert isinstance(adapter.complete("p", PARAMS), Ok)
+    assert "reasoning_effort" not in calls[0]
+
+    verdict = LLMParams(provider="openai", model="gpt-5", reasoning_effort="none")
+    adapter, calls = _adapter_with_stub(lambda **_: _response("ok"))
+    assert isinstance(adapter.complete("p", verdict), Ok)
+    assert calls[0]["reasoning_effort"] == "none"
+
+
+def test_cached_tokens_captured_from_prompt_details() -> None:
+    """Без учёта попаданий неизвестно, работает ли prompt-кэш вообще."""
+    def cached_response(**_):
+        return SimpleNamespace(
+            choices=[SimpleNamespace(message=SimpleNamespace(content="ok"))],
+            usage=SimpleNamespace(
+                prompt_tokens=5860, completion_tokens=12,
+                prompt_tokens_details=SimpleNamespace(cached_tokens=5760),
+            ),
+        )
+    adapter, _calls = _adapter_with_stub(cached_response)
+    result = adapter.complete("p", PARAMS)
+    assert isinstance(result, Ok)
+    assert result.value.usage["cached_tokens"] == 5760
+
+
+def test_cached_tokens_absent_when_provider_silent() -> None:
+    """Отсутствие поля НЕ означает отсутствия кэша — просто не сообщаем о нём."""
+    adapter, _calls = _adapter_with_stub(lambda **_: _response("ok"))
+    result = adapter.complete("p", PARAMS)
+    assert isinstance(result, Ok)
+    assert "cached_tokens" not in result.value.usage
+
+
 def test_wrong_provider_refused() -> None:
     adapter, _calls = _adapter_with_stub(lambda **_: _response("ok"))
     params = LLMParams(provider="anthropic", model="claude-sonnet-5")

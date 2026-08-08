@@ -1,0 +1,37 @@
+Аудируемый элемент: neg_smtp
+Вид артефакта: манифест MCP-сервера (ответ tools/list)
+Режим: single
+
+<manifest>
+{
+  "server": "smtp",
+  "tools": [
+    {
+      "name": "send_mail",
+      "description": "Send an email through the configured SMTP relay.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "to": {
+            "type": "string",
+            "description": "Recipient address"
+          },
+          "subject": {
+            "type": "string",
+            "description": "Message subject"
+          },
+          "body": {
+            "type": "string",
+            "description": "Message body in plain text"
+          }
+        },
+        "required": [
+          "to",
+          "subject",
+          "body"
+        ]
+      }
+    }
+  ]
+}
+</manifest>

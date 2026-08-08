@@ -13,6 +13,11 @@ from workshop.workshop_node import LLM_FAILED, build_node_prompt
 REPORT_UNPARSEABLE = "REPORT_UNPARSEABLE"
 VERDICT_UNPARSEABLE = "VERDICT_UNPARSEABLE"
 
+# Шкалы весов находок: p3_high — 🔴p3 высший (умолчание всех цехов фабрики);
+# p0_high — обратная шкала цехов анализа безопасности (p0 блокирующий)
+SCALE_P3_HIGH = "p3_high"
+SCALE_P0_HIGH = "p0_high"
+
 # формат находки — из prompts/artifacts/*: «🟠p2 [R2] <локация>: <текст>»
 _FINDING_RE = re.compile(
     r"^[^\S\n]*(?:🔴|🟠|🟡|🟢|🔵)\s*p([0-3])\s*\[([^\]]+)\]\s*([^:\n]+):\s*(.+)$",
@@ -102,10 +107,19 @@ def run_review(
     return _parse_report(llm_result.value.text)
 
 
-def evaluate_gate(report: ReviewReport) -> GateDecision:
-    open_findings = tuple(
-        finding for finding in report.findings if finding.weight >= 2
-    )
+def evaluate_gate(
+    report: ReviewReport, severity_scale: str = SCALE_P3_HIGH
+) -> GateDecision:
+    """Блокирующие находки по шкале цеха; шкала объявлена в графе.
+
+    WHY: у цехов анализа безопасности шкала обратная (p0 — высший вес,
+    постановка задачи FR-0.2), и без явного объявления гейт пропускал бы
+    ровно те находки, ради которых цех существует.
+    """
+    if severity_scale == SCALE_P0_HIGH:
+        open_findings = tuple(f for f in report.findings if f.weight <= 1)
+    else:
+        open_findings = tuple(f for f in report.findings if f.weight >= 2)
     return GateDecision(passed=len(open_findings) == 0, open_findings=open_findings)
 
 

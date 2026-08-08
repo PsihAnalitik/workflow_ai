@@ -39,6 +39,37 @@ class MapItem:
     content: str   # входной материал прогона
 
 
+def defuse_placeholders(text: str) -> tuple[str, int]:
+    """Разводит двойные фигурные скобки пробелом: «{{» → «{ {».
+
+    WHY (TSK-2619): узел цитирует такое место в отчёте, отчёт уходит в промпт
+    приёмщика через INPUTS и роняет его сборку (UNRESOLVED_PLACEHOLDER,
+    TSK-0302) — элемент теряется целиком. inline_limit_chars=0 закрывает
+    только половину шва: сам материал в промпт не попадает, а цитата из него
+    попадает. Правило «не цитируй двойные скобки» в промпте вероятностно и на
+    практике нарушается, поэтому замена делается ДЕТЕРМИНИРОВАННО и до модели
+    (образец — санитизация TOC, TSK-2207).
+
+    Возвращает текст и число замен: ненулевое требует пометки в элементе —
+    у prompt_roaster двойные скобки сами являются предметом ревью, и молчаливая
+    подмена превратилась бы в ложную находку «сломанный плейсхолдер».
+    """
+    count = text.count("{" "{") + text.count("}" "}")
+    if count == 0:
+        return text, 0
+    return text.replace("{" "{", "{ {").replace("}" "}", "} }"), count
+
+
+def _placeholder_note(count: int) -> str:
+    if count == 0:
+        return ""
+    return (
+        f"\nВнимание: в тексте {count} мест с двойными фигурными скобками — "
+        f"при сборке элемента они разведены пробелом («{{ {{»). В исходнике "
+        f"они записаны слитно; считай их корректными плейсхолдерами."
+    )
+
+
 @dataclass(frozen=True)
 class MapRow:
     slug: str
@@ -65,20 +96,45 @@ def split_files(pattern: str | Sequence[str]) -> Result[list[MapItem]]:
     paths = sorted(matched)
     if not paths:
         return Err(MAP_NO_ITEMS, f"glob не нашёл файлов: {', '.join(patterns)}")
+    slugs = _unique_slugs(paths)
     items: list[MapItem] = []
-    for path in paths:
+    for path, slug in zip(paths, slugs):
         try:
             text = path.read_text(encoding="utf-8")
         except (OSError, UnicodeDecodeError) as exc:
             return Err(MAP_SOURCE_INVALID, f"{path}: {exc}")
+        defused, defused_count = defuse_placeholders(text)
         items.append(
             MapItem(
-                slug=path.stem,
+                slug=slug,
                 title=path.name,
-                content=f"Ревьюируемый файл: {path.name}\n\n{text}",
+                content=(
+                    f"Ревьюируемый файл: {path.name}"
+                    f"{_placeholder_note(defused_count)}\n\n{defused}"
+                ),
             )
         )
     return Ok(items)
+
+
+def _unique_slugs(paths: list[Path]) -> list[str]:
+    """Слаг = имя файла без расширения; при коллизии (11 __init__.py разных
+    пакетов сливались в один элемент) добавляются родительские каталоги
+    (core____init__) до уникальности. Пути уникальны → цикл завершается."""
+    depth = {path: 1 for path in paths}
+    while True:
+        slugs = [
+            "__".join(path.with_suffix("").parts[-depth[path]:]) for path in paths
+        ]
+        counts: dict[str, int] = {}
+        for slug in slugs:
+            counts[slug] = counts.get(slug, 0) + 1
+        duplicated = {slug for slug, count in counts.items() if count > 1}
+        if not duplicated:
+            return slugs
+        for path, slug in zip(paths, slugs):
+            if slug in duplicated and depth[path] < len(path.with_suffix("").parts):
+                depth[path] += 1
 
 
 def split_schema_tables(
@@ -358,7 +414,17 @@ def _table_item_content(
     if findings:
         finding_lines = "\n".join(f"- {finding}" for finding in findings)
         parts += ["", "<deterministic_findings>", finding_lines, "</deterministic_findings>"]
-    return "\n".join(parts)
+    # карточки таблиц и domain_rules — фрагменты промпта: двойные скобки
+    # в них встречаются и роняют сборку так же, как в файлах-элементах
+    defused, defused_count = defuse_placeholders("\n".join(parts))
+    if defused_count == 0:
+        return defused
+    return defused.replace(
+        f"Проверяемая таблица: {db_name} / {schema_name}.{table_name}",
+        f"Проверяемая таблица: {db_name} / {schema_name}.{table_name}"
+        f"{_placeholder_note(defused_count)}",
+        1,
+    )
 
 
 def _fs_slug(slug: str) -> str:

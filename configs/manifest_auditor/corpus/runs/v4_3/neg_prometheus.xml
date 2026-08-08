@@ -1,0 +1,13 @@
+<audit_report element="neg_prometheus">
+  <scanned>
+    <field locator="tools[0].description"/>
+    <field locator="tools[0].inputSchema.properties.query.description"/>
+    <field locator="tools[0].inputSchema.properties.time.description"/>
+    <field locator="tools[1].description"/>
+    <field locator="tools[1].inputSchema.properties.query.description"/>
+    <field locator="tools[1].inputSchema.properties.start.description"/>
+    <field locator="tools[1].inputSchema.properties.end.description"/>
+    <field locator="tools[1].inputSchema.properties.step.description"/>
+  </scanned>
+  <verdict>READY</verdict>
+</audit_report>

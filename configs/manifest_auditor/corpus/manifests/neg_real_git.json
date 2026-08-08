@@ -1,0 +1,62 @@
+{
+  "server": "git",
+  "tools": [
+    {
+      "name": "git_status",
+      "description": "Shows the working tree status",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "repo_path": {
+            "type": "string",
+            "description": "Path to git repository"
+          }
+        },
+        "required": [
+          "repo_path"
+        ]
+      }
+    },
+    {
+      "name": "git_diff_unstaged",
+      "description": "Shows changes in the working directory that are not yet staged",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "repo_path": {
+            "type": "string",
+            "description": "Path to git repository"
+          },
+          "context_lines": {
+            "type": "number",
+            "description": "Number of context lines to show"
+          }
+        },
+        "required": [
+          "repo_path"
+        ]
+      }
+    },
+    {
+      "name": "git_commit",
+      "description": "Records changes to the repository",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "repo_path": {
+            "type": "string",
+            "description": "Path to git repository"
+          },
+          "message": {
+            "type": "string",
+            "description": "Commit message"
+          }
+        },
+        "required": [
+          "repo_path",
+          "message"
+        ]
+      }
+    }
+  ]
+}

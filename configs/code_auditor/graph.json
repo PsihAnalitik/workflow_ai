@@ -1,0 +1,27 @@
+{
+  "_comment": "Цех статического аудита исходного кода (ТЗ security-цехов, этап 7). Элемент map-прогона = один файл исходника + вывод внешних сканеров, подготовленный tools/prepare_code_items.py (FR-C2: bandit/semgrep гоняются в sandbox.py M-10 с --network none). Состязательная структура FR-C1: hypothesis порождает кандидатов, refutation пытается опровергнуть каждого, judge агрегирует; одностадийный аудит запрещён. inline_limit_chars=0: элемент виден узлам ТОЛЬКО через material_get — так и код с литеральными двойными скобками не роняет сборку промпта, и refutation/judge видят исходник, хотя их upstream — артефакт предыдущего узла. Инструменты узлов ограничены material_* (NFR-0.1: ни записи, ни сети). max_iterations по умолчанию 3 (открытый вопрос №4 ТЗ решён наследованием). HITL нет (NFR-0.6). Известный шов (общий с prompt_roaster и exception_roaster): цитата исходника с литеральными двойными скобками роняет сборку промпта следующего узла (UNRESOLVED_PLACEHOLDER, TSK-0302) и теряет элемент целиком — закрыт детерминированно в prepare_code_items.py — двойные скобки разводятся пробелом при сборке элемента; правило цитирования в quote_rules узлов оставлено второй линией, одного его недостаточно (TSK-2619).",
+  "project": "code_auditor",
+  "_comment_scale": "Шкала весов ТЗ: p0 — блокирующий, p3 — низший (FR-0.2, FR-C3). Обратна шкале остальных цехов фабрики, поэтому объявлена явно: ревью-гейт движка блокирует по ней, а не по умолчанию p3/p2.",
+  "severity_scale": "p0_high",
+  "llm_profiles_path": "configs/code_auditor/models.json",
+  "material": {"chunk_chars": 4000, "chunk_overlap": 400, "inline_limit_chars": 0},
+  "nodes": [
+    {
+      "id": "hypothesis",
+      "config_path": "configs/code_auditor/nodes/hypothesis.json"
+    },
+    {
+      "id": "refutation",
+      "config_path": "configs/code_auditor/nodes/refutation.json"
+    },
+    {
+      "id": "judge",
+      "config_path": "configs/code_auditor/nodes/judge.json",
+      "gates": {"review_config_path": "configs/code_auditor/nodes/judge_review.json"}
+    }
+  ],
+  "edges": [
+    {"from": "hypothesis", "to": "refutation"},
+    {"from": "refutation", "to": "judge"}
+  ]
+}

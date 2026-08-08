@@ -128,11 +128,12 @@ def test_one_run_per_project(in_tmp: Path, make_config_file) -> None:
 def test_failed_run_state(in_tmp: Path, make_config_file) -> None:
     manager = RunManager()
     shop = _shop(in_tmp, make_config_file, hitl=False)
-    llm = FakeLLM([fake_ok("без блока артефакта")])
+    # unparseable-ответ уходит в rework: узел падает после исчерпания итераций
+    llm = FakeLLM([fake_ok("без блока артефакта")] * 3)
     started = manager.start_run(shop, "вход", llm=llm)
     assert isinstance(started, Ok)
     assert _wait_status(manager, started.value, {"failed"}) == "failed"
-    assert "OUTPUT_UNPARSEABLE" in manager.get_state(started.value).value.error
+    assert "MAX_ITERATIONS_EXCEEDED" in manager.get_state(started.value).value.error
 
 
 def test_unknown_run_and_no_pending(in_tmp: Path) -> None:

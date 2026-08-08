@@ -49,6 +49,40 @@ def test_split_files_sorted_and_slugged(tmp_path: Path) -> None:
     assert isinstance(result, Ok)
     assert [item.slug for item in result.value] == ["A_PROMPT", "B_PROMPT"]
     assert "Ревьюируемый файл: A_PROMPT.md" in result.value[0].content
+def test_split_files_defuses_double_braces_with_note(tmp_path: Path) -> None:
+    """TSK-2619: цитата двойных скобок в отчёте роняет сборку промпта приёмщика.
+
+    Замена детерминирована и до модели; молчаливой она быть не может —
+    у prompt_roaster двойные скобки сами являются предметом ревью.
+    """
+    (tmp_path / "prompt.md").write_text(
+        "Шаблон: " + "{" "{INPUTS}" "}" + " и хвост", encoding="utf-8"
+    )
+    result = split_files(str(tmp_path / "*.md"))
+    assert isinstance(result, Ok)
+    content = result.value[0].content
+    assert "{" "{" not in content and "}" "}" not in content
+    assert "{ {INPUTS} }" in content
+    assert "разведены пробелом" in content
+
+
+def test_split_files_without_braces_has_no_note(tmp_path: Path) -> None:
+    (tmp_path / "plain.md").write_text("обычный текст", encoding="utf-8")
+    result = split_files(str(tmp_path / "*.md"))
+    assert isinstance(result, Ok)
+    assert "разведены пробелом" not in result.value[0].content
+
+
+def test_split_files_slug_collision_gets_parent_prefix(tmp_path: Path) -> None:
+    """11 __init__.py разных пакетов не должны сливаться в один элемент."""
+    for pkg in ("core", "nodes"):
+        (tmp_path / pkg).mkdir()
+        (tmp_path / pkg / "__init__.py").write_text("", encoding="utf-8")
+        (tmp_path / pkg / f"{pkg}_mod.py").write_text("x = 1", encoding="utf-8")
+    result = split_files([str(tmp_path / "*" / "*.py")])
+    assert isinstance(result, Ok)
+    slugs = {item.slug for item in result.value}
+    assert {"core____init__", "nodes____init__", "core_mod", "nodes_mod"} == slugs
 
 
 def test_split_files_multiple_patterns_deduped(tmp_path: Path) -> None:
@@ -223,8 +257,8 @@ def test_map_run_failure_does_not_stop_and_resume_skips(
     (tmp_path / "src" / "two.md").write_text("два", encoding="utf-8")
     items = split_files(str(tmp_path / "src" / "*.md")).value
 
-    # первый элемент упадёт (ответ без артефакта), второй пройдёт
-    llm = FakeLLM([fake_ok("нет ни блока, ни маркера"), fake_ok("```xml\n<r/>\n```")])
+    # первый элемент упадёт (3 ответа без артефакта — rework исчерпан), второй пройдёт
+    llm = FakeLLM([fake_ok("нет ни блока, ни маркера")] * 3 + [fake_ok("```xml\n<r/>\n```")])
     report = map_run(graph, items, llm, hitl=None, base_dir=tmp_path / "proj")
     assert isinstance(report, Ok)
     assert [row.status for row in report.value.rows] == ["failed", "done"]

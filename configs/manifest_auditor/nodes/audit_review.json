@@ -1,0 +1,12 @@
+{
+  "base_prompt_path": "configs/manifest_auditor/prompts/audit_review.base.md",
+  "stage_map_path": "configs/manifest_auditor/prompts/empty.stage.md",
+  "wiki_refs": [
+    {
+      "path": "wiki/security/injection-patterns.md",
+      "version": "v4"
+    }
+  ],
+  "tools": [],
+  "llm_profile": "review"
+}

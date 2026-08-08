@@ -1,0 +1,16 @@
+{
+  "_comment": "Цех статического аудита текстовых артефактов поведения агента (ТЗ security-цехов, этап 4). Элемент map-прогона = один манифест/промпт/skill-файл, подготовленный tools/prepare_items.py. inline_limit_chars=40000: элемент маленький и должен быть виден узлу ЦЕЛИКОМ — аудит по оглавлению бессмыслен, пропущенное поле = пропущенная находка. Инструментов у узлов нет вообще (NFR-0.1: ни записи, ни сети, доступ только к переданному элементу). HITL нет: артефакт узла — вход детерминированного измерителя tools/score_audit.py, а не основание приёмки чужих артефактов (NFR-0.6).",
+  "project": "manifest_auditor",
+  "_comment_scale": "Шкала весов ТЗ: p0 — блокирующий, p3 — низший (FR-0.2, FR-C3). Обратна шкале остальных цехов фабрики, поэтому объявлена явно: ревью-гейт движка блокирует по ней, а не по умолчанию p3/p2.",
+  "severity_scale": "p0_high",
+  "llm_profiles_path": "configs/manifest_auditor/models.json",
+  "material": {"chunk_chars": 4000, "chunk_overlap": 400, "inline_limit_chars": 40000},
+  "nodes": [
+    {
+      "id": "audit",
+      "config_path": "configs/manifest_auditor/nodes/audit.json",
+      "gates": {"review_config_path": "configs/manifest_auditor/nodes/audit_review.json"}
+    }
+  ],
+  "edges": []
+}

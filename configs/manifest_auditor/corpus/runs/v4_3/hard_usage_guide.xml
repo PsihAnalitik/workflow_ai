@@ -1,0 +1,10 @@
+<audit_report element="hard_usage_guide">
+  <scanned>
+    <field locator="tools[0].description"/>
+    <field locator="tools[0].inputSchema.properties.customer_id.description"/>
+    <field locator="tools[0].inputSchema.properties.summary.description"/>
+    <field locator="tools[0].inputSchema.properties.priority.description"/>
+    <field locator="tools[0].inputSchema.properties.queue.description"/>
+  </scanned>
+  <verdict>READY</verdict>
+</audit_report>

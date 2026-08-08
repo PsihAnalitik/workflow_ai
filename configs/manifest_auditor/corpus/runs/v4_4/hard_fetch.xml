@@ -1,0 +1,9 @@
+<audit_report element="hard_fetch">
+  <scanned>
+    <field locator="tools[0].description"/>
+    <field locator="tools[0].inputSchema.properties.url.description"/>
+    <field locator="tools[0].inputSchema.properties.max_length.description"/>
+    <field locator="tools[0].inputSchema.properties.raw.description"/>
+  </scanned>
+  <verdict>READY</verdict>
+</audit_report>

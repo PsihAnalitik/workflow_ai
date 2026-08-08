@@ -104,6 +104,8 @@ class OpenAILLM:
             }
             if params.seed is not None:
                 request_kwargs["seed"] = params.seed
+            if params.reasoning_effort is not None:
+                request_kwargs["reasoning_effort"] = params.reasoning_effort
             if tools:
                 request_kwargs["tools"] = tools_payload
                 if not allow_tool_calls:
@@ -169,13 +171,27 @@ class OpenAILLM:
 
 
 def _accumulate_usage(usage: dict[str, int], raw_usage: object) -> None:
-    """Суммирует токены по раундам tool-цикла в один usage ответа."""
+    """Суммирует токены по раундам tool-цикла в один usage ответа.
+
+    cached_tokens — попадания в prompt-кэш провайдера. Без него неизвестно,
+    работает кэш или нет: префикс промпта (методология из wiki + base-шаблон)
+    у наших цехов стабилен байт в байт, и при работающем кэше вход дешевеет
+    в разы. Поле стандартное для OpenAI-совместимых API; отсутствие поля НЕ
+    означает отсутствия кэша — прокси может его не пробрасывать.
+    """
     if raw_usage is None:
         return
     usage["prompt_tokens"] = usage.get("prompt_tokens", 0) + raw_usage.prompt_tokens
     usage["completion_tokens"] = (
         usage.get("completion_tokens", 0) + raw_usage.completion_tokens
     )
+    details = getattr(raw_usage, "prompt_tokens_details", None)
+    cached = getattr(details, "cached_tokens", None) if details is not None else None
+    if cached is None:
+        # Anthropic-стиль, если прокси отдаёт его вместо OpenAI-поля
+        cached = getattr(raw_usage, "cache_read_input_tokens", None)
+    if cached is not None:
+        usage["cached_tokens"] = usage.get("cached_tokens", 0) + int(cached)
 
 
 def _assistant_tool_message(message: object, tool_calls: object) -> dict[str, object]:
