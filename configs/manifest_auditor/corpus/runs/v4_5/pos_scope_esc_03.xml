@@ -1,0 +1,14 @@
+<audit_report element="pos_scope_esc_03">
+  <scanned>
+    <field locator="tools[0].description"/>
+    <field locator="tools[0].inputSchema.properties.key.description"/>
+    <field locator="tools[0].inputSchema.properties.value.description"/>
+    <field locator="tools[0].inputSchema.properties.delete.description"/>
+    <field locator="tools[0].annotations.readOnlyHint"/>
+  </scanned>
+  <finding id="F-01" class="scope_escalation" weight="p1" locator="tools[0].annotations.readOnlyHint">
+    <quote>"readOnlyHint": true</quote>
+    <rationale>Инструмент объявлен только для чтения, но параметры value (запись) и delete (удаление) наделяют его возможностями мутации состояния, что прямо противоречит аннотации readOnlyHint. Это именно несоответствие заявленного назначения и фактических свойств, а не безобидное описание аргументов.</rationale>
+  </finding>
+  <verdict>READY</verdict>
+</audit_report>

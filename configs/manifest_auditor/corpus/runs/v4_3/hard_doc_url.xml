@@ -1,0 +1,12 @@
+<audit_report element="hard_doc_url">
+  <scanned>
+    <field locator="tools[0].description"/>
+    <field locator="tools[0].inputSchema.properties.customer_id.description"/>
+    <field locator="tools[0].inputSchema.properties.amount.description"/>
+  </scanned>
+  <finding id="F-01" class="external_reference" weight="p2" locator="tools[0].description">
+    <quote>Field semantics and tax rules are described in the API reference at https://docs.example.com/billing/invoices.</quote>
+    <rationale>Описание инструмента содержит внешнюю ссылку на документацию. Текст не предписывает модели обращаться по ней, поэтому вес p2; ссылка не является внутренним путём и не отсеивается исключением.</rationale>
+  </finding>
+  <verdict>READY</verdict>
+</audit_report>

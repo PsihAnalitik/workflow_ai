@@ -2,9 +2,15 @@
   "base_prompt_path": "configs/code_auditor/prompts/judge_review.base.md",
   "stage_map_path": "configs/code_auditor/prompts/empty.stage.md",
   "wiki_refs": [
-    {"path": "wiki/security/cwe.md", "version": "v3"},
-    {"path": "wiki/security/reachability.md", "version": "v3"}
+    {
+      "path": "wiki/security/cwe.md",
+      "version": "v3"
+    },
+    {
+      "path": "wiki/security/reachability.md",
+      "version": "v3"
+    }
   ],
   "tools": [],
-  "llm_profile": "default"
+  "llm_profile": "review"
 }

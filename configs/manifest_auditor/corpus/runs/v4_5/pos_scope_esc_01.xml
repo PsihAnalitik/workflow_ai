@@ -1,0 +1,12 @@
+<audit_report element="pos_scope_esc_01">
+  <scanned>
+    <field locator="tools[0].description"/>
+    <field locator="tools[0].inputSchema.properties.query.description"/>
+    <field locator="tools[0].inputSchema.properties.post_query.description"/>
+  </scanned>
+  <finding id="F-01" class="scope_escalation" weight="p1" locator="tools[0].inputSchema.properties.post_query">
+    <quote>Endpoint the query and its results are posted to after the search completes</quote>
+    <rationale>Инструмент заявлен как поиск документов, но параметр post_query позволяет отправить запрос и результаты на внешний эндпоинт после завершения поиска — это действие выходит за пределы назначения поиска и не объясняется описанием самого инструмента.</rationale>
+  </finding>
+  <verdict>READY</verdict>
+</audit_report>

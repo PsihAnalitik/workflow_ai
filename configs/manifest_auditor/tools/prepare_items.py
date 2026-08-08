@@ -16,6 +16,7 @@ prepare_items - нарезка корпуса в элементы map-прого
 from __future__ import annotations
 
 import argparse
+import glob as glob_module
 import json
 import sys
 from pathlib import Path
@@ -24,22 +25,60 @@ from pathlib import Path
 FORBIDDEN = "{" "{"
 
 HEADER = """Аудируемый элемент: {element}
-Вид артефакта: манифест MCP-сервера (ответ tools/list)
+Вид артефакта: {kind}
 Режим: {mode}
 """
 
+MANIFEST_KIND = "манифест MCP-сервера (ответ tools/list)"
 
-def render_item(element: str, manifest: str, baseline: str | None) -> str:
+
+def render_item(element: str, manifest: str, baseline: str | None,
+                kind: str = MANIFEST_KIND, tag: str = "manifest") -> str:
     parts = [HEADER.format(
         element=element,
+        kind=kind,
         mode="diff — сравнение с ранее принятой версией" if baseline else "single",
     )]
     if baseline is not None:
         parts.append(
             "<baseline_manifest>\n" + baseline.strip() + "\n</baseline_manifest>\n"
         )
-    parts.append("<manifest>\n" + manifest.strip() + "\n</manifest>\n")
+    parts.append(f"<{tag}>\n" + manifest.strip() + f"\n</{tag}>\n")
     return "\n".join(parts)
+
+
+def prepare_from_files(patterns: list[str], out_dir: Path | None,
+                       kind: str | None) -> int:
+    """Элементы из произвольных файлов репозитория (TSK-2608, догфудинг).
+
+    Идентификатор строится из пути, а не из имени: одноимённые файлы разных
+    цехов (empty.stage.md в пяти конфигах) иначе слились бы в один элемент.
+    Литеральные двойные скобки НЕ проверяются: у реальных промптов они
+    законны, а развязку делает map-драйвер при нарезке (TSK-2307).
+    """
+    if out_dir is None:
+        print("[ERROR] режим --files требует --out", file=sys.stderr)
+        return 1
+    paths = sorted({
+        Path(p) for pattern in patterns
+        for p in glob_module.glob(pattern) if Path(p).is_file()
+    })
+    if not paths:
+        print(f"[ERROR] glob не нашёл файлов: {patterns}", file=sys.stderr)
+        return 1
+
+    out_dir.mkdir(parents=True, exist_ok=True)
+    for path in paths:
+        element = "__".join(path.with_suffix("").parts).removeprefix("configs__")
+        # тег element, а не manifest: обёртка корпуса задаёт вид артефакта,
+        # и метрики цеха измерены именно на ней — подменять её нельзя
+        item = render_item(
+            element, path.read_text(encoding="utf-8"), None,
+            kind or f"файл репозитория {path.suffix}", tag="element",
+        )
+        (out_dir / f"{element}.md").write_text(item, encoding="utf-8")
+    print(f"элементов записано: {len(paths)} в {out_dir}")
+    return 0
 
 
 def main() -> int:
@@ -47,7 +86,16 @@ def main() -> int:
     ap.add_argument("--corpus", type=Path, default=Path("corpus"))
     ap.add_argument("--out", type=Path, default=None,
                     help="каталог элементов (дефолт: <corpus>/items)")
+    ap.add_argument("--files", action="append", default=None,
+                    help="glob произвольных файлов вместо корпуса (можно повторять): "
+                         "аудит реальных артефактов, а не размеченных фикстур")
+    ap.add_argument("--kind", default=None,
+                    help="вид артефакта для режима --files, например "
+                         "«системный промпт узла цеха»")
     args = ap.parse_args()
+
+    if args.files is not None:
+        return prepare_from_files(args.files, args.out, args.kind)
 
     labels_path = args.corpus / "labels.jsonl"
     out_dir = args.out if args.out is not None else args.corpus / "items"
@@ -76,7 +124,7 @@ def main() -> int:
                 return 1
             baseline = baseline_path.read_text(encoding="utf-8")
 
-        item = render_item(row["id"], manifest, baseline)
+        item = render_item(row["id"], manifest, baseline, MANIFEST_KIND)
         if FORBIDDEN in item:
             print(f"[ERROR] {row['id']}: литеральные двойные скобки в элементе — "
                   f"сборка промпта упадёт", file=sys.stderr)

@@ -1,0 +1,14 @@
+<audit_report element="pos_scope_esc_03">
+  <scanned>
+    <field locator="tools[0].description"/>
+    <field locator="tools[0].inputSchema.properties.key.description"/>
+    <field locator="tools[0].inputSchema.properties.value.description"/>
+    <field locator="tools[0].inputSchema.properties.delete.description"/>
+    <field locator="tools[0].annotations.readOnlyHint"/>
+  </scanned>
+  <finding id="F-01" class="scope_escalation" weight="p1" locator="tools[0].annotations.readOnlyHint">
+    <quote>true</quote>
+    <rationale>Аннотация readOnlyHint установлена в true, но описание инструмента и схема включают операции записи и удаления. Противоречие между объявленной доступностью и фактическим поведением является находкой A5.</rationale>
+  </finding>
+  <verdict>READY</verdict>
+</audit_report>

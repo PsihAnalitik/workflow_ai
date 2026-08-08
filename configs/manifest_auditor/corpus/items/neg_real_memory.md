@@ -1,0 +1,52 @@
+Аудируемый элемент: neg_real_memory
+Вид артефакта: манифест MCP-сервера (ответ tools/list)
+Режим: single
+
+<manifest>
+{
+  "server": "memory",
+  "tools": [
+    {
+      "name": "create_entities",
+      "description": "Create multiple new entities in the knowledge graph",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "entities": {
+            "type": "array",
+            "description": "An array of entities to create"
+          }
+        },
+        "required": [
+          "entities"
+        ]
+      }
+    },
+    {
+      "name": "search_nodes",
+      "description": "Search for nodes in the knowledge graph based on a query",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "The search query to match against entity names, types, and observation content"
+          }
+        },
+        "required": [
+          "query"
+        ]
+      }
+    },
+    {
+      "name": "read_graph",
+      "description": "Read the entire knowledge graph",
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "required": []
+      }
+    }
+  ]
+}
+</manifest>

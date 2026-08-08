@@ -23,7 +23,7 @@ audit[review]
 | `corpus/labels.jsonl` | эталонная разметка (копия из `materials/security_data`) |
 | `corpus/manifests/` | корпус: 23 позитива, 21 негатив, 10 трудных негативов |
 | `corpus/items/` | элементы map-прогона (см. `tools/prepare_items.py`) |
-| `corpus/runs/` | прогоны: `regex_baseline`, `tz_1..tz_5`, `metrics_tz.json` |
+| `corpus/runs/` | прогоны: `regex_baseline`, `v4_1..v4_5`, `metrics_v4.json` |
 | `tools/prepare_items.py` | корпус → элементы; diff-элементы получают базовую версию |
 | `tools/collect_run.py` | артефакты прогона → плоский каталог для измерителя |
 | `tools/accept_manifests.py` | приёмочная таблица sha256 принятых манифестов (FR-A3) |
@@ -41,26 +41,28 @@ python3 configs/manifest_auditor/tools/prepare_items.py --corpus configs/manifes
 
 cd configs/manifest_auditor
 python3 tools/collect_run.py --project ../../projects/manifest_auditor --node audit \
-    --out corpus/runs/tz_1
-python3 tools/score_audit.py --labels corpus/labels.jsonl --run corpus/runs/tz_1 \
+    --out corpus/runs/v4_1 --elements-from corpus/labels.jsonl
+python3 tools/score_audit.py --labels corpus/labels.jsonl --run corpus/runs/v4_1 \
     --baseline corpus/runs/regex_baseline
 ```
 
 Повторный `map` создаёт следующую версию артефакта у каждого элемента,
 `collect_run.py` берёт последнюю — так набираются прогоны для AC-A3.
+`--elements-from` обязателен, когда в том же каталоге прогона лежат элементы
+других задач (догфудинг): без него их находки попадут в метрики корпуса.
 
 ## Метрики
 
-Модель `deepseek-v4-pro`, `temperature=0`, каталог `injection-patterns.md` v3,
-шкала `p0_high`. Пять прогонов по корпусу, `corpus/runs/tz_1..tz_5`,
-сырые числа — `corpus/runs/metrics_tz.json`.
+Модель `deepseek-v4-pro`, `temperature=0`, каталог `injection-patterns.md` v4,
+шкала `p0_high`. Пять прогонов по корпусу, `corpus/runs/v4_1..v4_5`,
+сырые числа — `corpus/runs/metrics_v4.json`.
 
 | Метрика | Критерий | baseline | Цех (среднее из 5) |
 |---|---|---|---|
-| precision | ≥ 0.70 | 0.489 | **0.729** |
+| precision | ≥ 0.70 | 0.489 | **0.721** |
 | recall | ≥ 0.80 | 0.815 | **0.919** |
-| тишина на негативах | ≥ 0.90 | 0.645 | **0.987** |
-| ст. отклонение recall | ≤ шум выборки (0.079) | — | **0.036** |
+| тишина на негативах | ≥ 0.90 | 0.645 | **1.000** |
+| ст. отклонение recall | ≤ шум выборки (0.079) | — | **0.028** |
 
 Все четыре критерия (AC-A2, AC-A3, AC-A4) выполнены, baseline превзойдён по
 обеим метрикам одновременно.
@@ -77,6 +79,32 @@ and were advised to refuse») и пометку DEPRECATED, на которых 
 внесёнными в разметку (размечен только внедрённый паттерн). С
 `--lenient-positives` precision составляет 0.93–1.00. Строгая цифра 0.729 —
 нижняя оценка; разбор этого расхождения — задача `TSK-2613` плана.
+
+## Догфудинг: прогон по промптам самой фабрики
+
+`TSK-2608`. Элементы — 43 промпта и 38 конфигов узлов всех десяти цехов
+(`tools/prepare_items.py --files ... --kind ...`).
+
+| | Каталог v3 | Каталог v4 |
+|---|---|---|
+| находок на 81 элементе | 23 | 7 |
+| из них блокирующих p0 | 13 | 2 |
+| элементов с находками | 8 | 3 |
+
+Все находки первого прогона оказались ложными, и причина была одна:
+определения A6 и A7 писались под JSON-манифест. В Markdown-промпте
+HTML-комментарий — это шапка файла и маркеры сборки (`@fragment: …`), а
+`base_prompt_path` и `wiki_refs[N].path` — пути внутри системы, а не внешние
+ссылки. Каталог доведён до v4; метрики корпуса после правки пересчитаны и
+не просели (тишина даже выросла до 1.000).
+
+Остаток на v4 — 5 находок A1 на строках `TRIGGER:`/`SKIP:` собственных
+узлов, то есть на содержании системного промпта. Класс A1 определён как
+«императив в описательном поле», а системный промпт состоит из императивов
+целиком: правило для этого вида артефакта — задача `TSK-2604`.
+
+Побочный вывод: конфиги узлов аудировать смысла мало — они дают пустую
+карту и `READY`, полей, адресованных модели, в них нет.
 
 Отдельно измерен вклад каталога: на версии v1 precision была 0.523.
 Добавление разделов «Одна находка на один фрагмент» и «Локатор: где именно
@@ -107,7 +135,7 @@ and were advised to refuse») и пометку DEPRECATED, на которых 
 ## Приёмка манифестов (FR-A3)
 
 ```bash
-python3 tools/accept_manifests.py --run corpus/runs/tz_5 \
+python3 tools/accept_manifests.py --run corpus/runs/v4_5 \
     --manifests corpus/manifests --changelog ../../projects/consumer/CHANGELOG.md
 ```
 
@@ -116,7 +144,7 @@ python3 tools/accept_manifests.py --run corpus/runs/tz_5 \
 списком в stderr и не принимаются молча. Расхождение хэша дальше ловит
 штатный `python -m workshop verify-acceptance <каталог>` (M-13): правка
 манифеста после аудита обнаруживается чекером, а не дисциплиной.
-На прогоне `tz_5` принято 42 элемента, отклонено 12.
+На прогоне `v4_5` принято 42 элемента, отклонено 12.
 
 ## Чего в цехе НЕТ
 

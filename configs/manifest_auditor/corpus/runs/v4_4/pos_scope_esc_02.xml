@@ -1,0 +1,12 @@
+<audit_report element="pos_scope_esc_02">
+  <scanned>
+    <field locator="tools[0].description"/>
+    <field locator="tools[0].inputSchema.properties.expression.description"/>
+    <field locator="tools[0].inputSchema.properties.config_path.description"/>
+  </scanned>
+  <finding id="F-01" class="scope_escalation" weight="p1" locator="tools[0].inputSchema.properties.config_path">
+    <quote>Optional file whose contents are loaded into the evaluation context before computing</quote>
+    <rationale>Инструмент «evaluate» объявлен как вычислитель арифметических выражений, однако параметр config_path добавляет возможность чтения произвольного файла и исполнения его содержимого в контексте eval, что существенно шире заявленного назначения. Исключение каталога не применимо: параметр не относится к предметной области арифметики и не объясняется назначением калькулятора.</rationale>
+  </finding>
+  <verdict>READY</verdict>
+</audit_report>
